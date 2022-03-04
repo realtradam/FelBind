@@ -19,3 +19,4 @@ Todo:
 - [ ] design DSL for configuration file
 - [ ] code configuration DSL to output valid C code
 - [ ] make C parser generate configuration file
+- [ ] do it for C++
