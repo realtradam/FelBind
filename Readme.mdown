@@ -1,0 +1,21 @@
+# FelBind
+
+A binding assistant and generator for C/C++ to mruby
+
+
+### How I plan for it to work:
+
+1. Run the scanner to scan the code and collect all functions and place them into a generation config file
+2. Edit the configuration to customize how things should be bound
+	- for example, under what module or class a function should belong
+	- if a certain param should use self instead of passing in something
+	- ignore some functions if you dont need them
+	- insert bindings you made yourself
+3. Run the configuration file - this generates the resulting code and header files
+
+Todo:
+
+- [X] parse C files for function and struct declarations
+- [ ] design DSL for configuration file
+- [ ] code configuration DSL to output valid C code
+- [ ] make C parser generate configuration file
