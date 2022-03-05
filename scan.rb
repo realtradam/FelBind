@@ -21,7 +21,7 @@ def parse_header(path)
   parse.each_line do |line|
     json_line = JSON.parse line
     if json_line['kind'] == 'prototype'
-      functions[json_line['name']] = param_strip(json_line['signature'])
+      functions["#{json_line['typeref'].sub(/^[^ ][^ ]* /,'')} #{json_line['name']}"] = param_strip(json_line['signature'])
     elsif json_line['kind'] == 'member'
       if json_line['scopeKind'] == 'struct'
         structs[json_line['scope']] ||= []
@@ -65,3 +65,8 @@ puts "Functions: #{functions.size}"
 puts "Structs: #{structs.size}"
 puts "Garbage: #{$garbage.size}(should be 0)"
 puts
+
+result = [functions, structs]
+
+File.write('glue.json', JSON.generate(result))
+

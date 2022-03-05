@@ -5,18 +5,28 @@ A binding assistant and generator for C/C++ to mruby
 
 ### How I plan for it to work:
 
-1. Run the scanner to scan the code and collect all functions and place them into a generation config file
-2. Edit the configuration to customize how things should be bound
+1. Run the scanner which will generate a glue.json file. This json file will contain all functions(and their params) as well as all structs(and their params)
+2. Create a configuration file where you can reference specific functions and how you want their bindings to be generated differently
 	- for example, under what module or class a function should belong
 	- if a certain param should use self instead of passing in something
 	- ignore some functions if you dont need them
 	- insert bindings you made yourself
-3. Run the configuration file - this generates the resulting code and header files
+3. Run the generator with the configuration file - this generates the resulting binding code
 
 Todo:
 
 - [X] parse C files for function and struct declarations
-- [ ] design DSL for configuration file
-- [ ] code configuration DSL to output valid C code
-- [ ] make C parser generate configuration file
-- [ ] do it for C++
+- [X] plan for DSL for configuration file
+- [ ] create generator's default output
+	- [X] phase 1 - bind returnless, paramless functions
+	- [ ] phase 2 - bind standard type return functions(e.g string or int), but still paramless
+		- bool
+		- int
+		- float
+		- double
+		- string
+	- [ ] phase 3 - bind standard type return or params
+	- [ ] phase 4 - bind struct construction(returning struct objects)
+	- [ ] phase 5 - bind struct params(unwrapping structs)
+- [ ] have generator use config DSL file to customize bindings
+- [ ] do it all again for C++
