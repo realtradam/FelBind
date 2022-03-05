@@ -95,20 +95,35 @@ glue.first.each do |func, params|
   func_name = rpart.last
 
   if func_datatype == 'void' && params[0] == 'void'
-    body = "#{func.split(' ').last}();\nreturn mrb_nil_value();"
-    defines += Template.function(func.split(' ').last, body)
-    init_body += Template.init_module_function('test', func.split(' ').last.underscore, func.split(' ').last, "MRB_ARGS_NONE()")
+    body = "#{func_name}();\nreturn mrb_nil_value();"
+    defines += Template.function(func_name, body)
+    init_body += Template.init_module_function('test', func_name.underscore, func_name, "MRB_ARGS_NONE()")
 
     bound[func] = params
     debug_mark_binding(func, params)
   elsif (standard_types.include? func_datatype) && (params[0] == 'void')
     if func_datatype == 'int'
-      body = "return mrb_fixnum_value(#{func.split(' ').last}());"
-      defines += Template.function(func.split(' ').last, body)
-      init_body += Template.init_module_function('test', func.split(' ').last.underscore, func.split(' ').last, "MRB_ARGS_NONE()")
+      body = "return mrb_fixnum_value(#{func_name}());"
+      defines += Template.function(func_name, body)
+      init_body += Template.init_module_function('test', func_name.underscore, func_name, "MRB_ARGS_NONE()")
 
       bound[func] = params
       debug_mark_binding(func, params)
+    elsif func_datatype == 'float' || func_datatype == 'double'
+      body = "return mrb_float_value(mrb, #{func_name}());"
+      defines += Template.function(func_name, body)
+      init_body += Template.init_module_function('test', func_name.underscore, func_name, "MRB_ARGS_NONE()")
+
+      bound[func] = params
+      debug_mark_binding(func, params)
+    elsif func_datatype == 'bool'
+      body = "return mrb_bool_value(#{func_name}());"
+      defines += Template.function(func_name, body)
+      init_body += Template.init_module_function('test', func_name.underscore, func_name, "MRB_ARGS_NONE()")
+
+      bound[func] = params
+      debug_mark_binding(func, params)
+
     end
   end
 end
@@ -116,7 +131,7 @@ end
 init_body.prepend(Template.define_module('Test'))
 
 result = %{
-  #{includes}
+#{includes}
 #{defines}
 #{Template.base('test', init_body, nil)}
 }
@@ -131,3 +146,4 @@ result += "//Phase 5 Functions: #{$complete_phase5.length} / #{$phase5.length}\n
 
 
 puts result
+
