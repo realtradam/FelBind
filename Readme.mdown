@@ -1,7 +1,12 @@
-# FelBind
+![FelBind](https://github.com/realtradam/FelBind/blob/master/logos/felbind-logo-text.png?raw=true)
 
-A binding assistant and generator for C/C++ to mruby
+[![MIT License](https://img.shields.io/github/license/realtradam/FelBind)](https://github.com/realtradam/FelBind/blob/master/LICENSE)
+[![Ko-Fi](https://img.shields.io/static/v1?message=Buy%20me%20a%20coffee&logo=kofi&labelColor=ff5e5b&color=434B57&logoColor=white&label=%20)](https://ko-fi.com/tradam)
 
+
+A binding assistant and generator for C/C++ to mruby(Under heavy WIP)
+
+---
 
 ### How I plan for it to work:
 
