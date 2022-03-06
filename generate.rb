@@ -73,6 +73,7 @@ glue.first.each do |func, params|
   end
 end
 
+# also for display statistics
 def debug_mark_binding(func, params)
   if $phase1.include? func
     $complete_phase1[func] = params
@@ -87,53 +88,173 @@ def debug_mark_binding(func, params)
   end
 end
 
+# make a function named like a ruby one would
+def rubify_func_name(function)
+  func = function.underscore
+  if func.start_with? 'is_'
+    func = func.delete_prefix('is_') + '?'
+  end
+  func.delete_prefix('get_')
+end
+
+
+
+# generate a return
+def return_format(function, params)
+  func_rpart = function.rpartition(' ')
+  func_datatype = func_rpart.first
+  func_name = func_rpart.last
+  result = ''
+  if func_datatype == 'void'
+    if params.first == 'void'
+      result = "#{func_name}();\nreturn mrb_nil_value();"
+    else
+      result = "#{func_name}(" #);\nreturn mrb_nil_value();"
+      result += params.first.rpartition(' ').last
+
+      params.drop(1).each do |param|
+        result += ", #{param.rpartition(' ').last}"
+      end
+      result += ");\nreturn mrb_nil_value();"
+    end
+  elsif params.first == 'void'
+    result = Tplt.to_mrb(func_datatype, "#{func_name}()") + ';'
+    #if func_datatype == 'int'
+    #  result = "return mrb_fixnum_value(#{func_name}());"
+    #elsif func_datatype == 'float' || func_datatype == 'double'
+    #  result = "return mrb_float_value(mrb, #{func_name}());"
+    #elsif func_datatype == 'bool'
+    #  result = "return mrb_bool_value(#{func_name}());"
+    #elsif func_datatype == 'const char *' || func_datatype == 'char *'
+    #  result = "return mrb_str_new_cstr(mrb, #{func_name}());"
+    #end
+  else
+    temp_params = params.first.rpartition(' ').last
+
+    params.drop(1).each do |param|
+      temp_params += ", #{param.rpartition(' ').last}"
+    end
+    result = Tplt.to_mrb(func_datatype, "#{func_name}(#{temp_params})") + ';'
+    #if func_datatype == 'int'
+    #  result = "return mrb_fixnum_value(#{func_name}(" #));"
+    #elsif func_datatype == 'float' || func_datatype == 'double'
+    #  result = "return mrb_float_value(mrb, #{func_name}(" #));"
+    #elsif func_datatype == 'bool'
+    #  result = "return mrb_bool_value(#{func_name}(" #));"
+    #elsif func_datatype == 'const char *' || func_datatype == 'char *'
+    #  result = "return mrb_str_new_cstr(mrb, #{func_name}(" #));"
+    #end
+  end
+  result
+end
+
 # generates functions
 glue.first.each do |func, params|
-  # for now dont worry about params or returns
+  # func = function name with return type
+  # func_datatype = function return type
+  # func_name = function name
+  # params = array of params with their data types(void means none)
   rpart = func.rpartition(' ')
   func_datatype = rpart.first
   func_name = rpart.last
 
+  # if phase 1
   if func_datatype == 'void' && params[0] == 'void'
-    body = "#{func_name}();\nreturn mrb_nil_value();"
-    defines += Template.function(func_name, body)
-    init_body += Template.init_module_function('test', func_name.underscore, func_name, "MRB_ARGS_NONE()")
+    body = return_format(func, params) #"#{func_name}();\nreturn mrb_nil_value();"
+    defines += Tplt.function(func_name, body)
+    init_body += Tplt.init_module_function('test', rubify_func_name(func_name), func_name, "MRB_ARGS_NONE()")
 
     bound[func] = params
     debug_mark_binding(func, params)
+    # if phase 2
   elsif (standard_types.include? func_datatype) && (params[0] == 'void')
     if func_datatype == 'int'
-      body = "return mrb_fixnum_value(#{func_name}());"
-      defines += Template.function(func_name, body)
-      init_body += Template.init_module_function('test', func_name.underscore, func_name, "MRB_ARGS_NONE()")
+      #body = "return mrb_fixnum_value(#{func_name}());"
+      body = return_format(func, params) 
+      defines += Tplt.function(func_name, body)
+      init_body += Tplt.init_module_function('test', rubify_func_name(func_name), func_name, "MRB_ARGS_NONE()")
 
       bound[func] = params
       debug_mark_binding(func, params)
     elsif func_datatype == 'float' || func_datatype == 'double'
-      body = "return mrb_float_value(mrb, #{func_name}());"
-      defines += Template.function(func_name, body)
-      init_body += Template.init_module_function('test', func_name.underscore, func_name, "MRB_ARGS_NONE()")
+      #body = "return mrb_float_value(mrb, #{func_name}());"
+      body = return_format(func, params) 
+      defines += Tplt.function(func_name, body)
+      init_body += Tplt.init_module_function('test', rubify_func_name(func_name), func_name, "MRB_ARGS_NONE()")
 
       bound[func] = params
       debug_mark_binding(func, params)
     elsif func_datatype == 'bool'
-      body = "return mrb_bool_value(#{func_name}());"
-      defines += Template.function(func_name, body)
-      init_body += Template.init_module_function('test', func_name.underscore, func_name, "MRB_ARGS_NONE()")
+      #body = "return mrb_bool_value(#{func_name}());"
+      body = return_format(func, params) 
+      defines += Tplt.function(func_name, body)
+      init_body += Tplt.init_module_function('test', rubify_func_name(func_name), func_name, "MRB_ARGS_NONE()")
 
       bound[func] = params
       debug_mark_binding(func, params)
 
+    elsif func_datatype == 'const char *' || func_datatype == 'char *'
+      # mrb_value mrb_str_new_cstr(mrb_state* , const char* )
+      #body = "return mrb_str_new_cstr(mrb, #{func_name}());"
+      body = return_format(func, params) 
+      defines += Tplt.function(func_name, body)
+      init_body += Tplt.init_module_function('test', rubify_func_name(func_name), func_name, "MRB_ARGS_NONE()")
+
+      bound[func] = params
+      debug_mark_binding(func, params)
+    end
+  elsif standard_types.include? func_datatype # accept params
+    # detecting if there is no struct param(wont need this in the future)
+    no_struct_param = true
+    params.each do |param|
+      if !(standard_types.include? param.rpartition(' ').first)
+        no_struct_param = false
+        break
+      end
+    end
+    if no_struct_param
+      if standard_types.include? func.rpartition(' ').first
+        #$phase3[func] = params
+        # ---
+        #body = ''
+        body = return_format(func, params) 
+        init_var_body = ''
+        init_array_body = ''
+        unwrapped_kwargs = ''
+        params.each_with_index do |param, index|
+          temp = param
+          temp_rpart = temp.rpartition(' ')
+          if temp_rpart.first == 'const char *'
+            temp = 'char *' + temp_rpart.last
+          end
+          init_var_body += temp + ";\n"
+          init_array_body += "mrb_intern_lit(mrb, \"#{temp_rpart.last}\"),\n"
+          unwrapped_kwargs += Tplt.unwrap_kwarg(index, "#{temp_rpart.last} = #{Tplt.to_c(temp_rpart.first, "kw_values[#{index}]")};", '')
+        end
+        body = Tplt.get_kwargs(params.length, init_var_body, init_array_body)
+        body += unwrapped_kwargs
+        body += return_format(func, params)
+        defines += Tplt.function(func_name, body)
+        init_body += Tplt.init_module_function('test', rubify_func_name(func_name), func_name, "MRB_ARGS_OPT(1)") # opt stuff isnt correct, need to look at this again
+        # ---
+        #puts func
+        bound[func] = params
+        debug_mark_binding(func, params)
+      else
+        #$phase4[func] = params
+      end
+    else
+      #$phase5[func] = params
     end
   end
 end
 
-init_body.prepend(Template.define_module('Test'))
+init_body.prepend(Tplt.define_module('Test'))
 
 result = %{
 #{includes}
 #{defines}
-#{Template.base('test', init_body, nil)}
+#{Tplt.base('test', init_body, nil)}
 }
 
 result += "//Bound Functions: #{$complete_phase1.length + $complete_phase2.length + $complete_phase3.length + $complete_phase4.length + $complete_phase5.length} / #{$phase1.length + $phase2.length + $phase3.length + $phase4.length + $phase5.length}\n//---\n"
@@ -146,4 +267,3 @@ result += "//Phase 5 Functions: #{$complete_phase5.length} / #{$phase5.length}\n
 
 
 puts result
-

@@ -4,3 +4,5 @@ result.txt
 output
 output/*
 glue.json
+temp
+temp.c

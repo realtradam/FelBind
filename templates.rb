@@ -1,4 +1,4 @@
-module Template
+module Tplt # Template
   class << self
     def base(gem_name, init_body, final_body)
       %{
@@ -34,11 +34,13 @@ mrb_#{function_name}(mrb_state* mrb, mrb_value self) {
       }
     end
 
-    def get_kwargs(kwarg_num, body)
+    def get_kwargs(kwarg_num, init_var_body, init_array_body)
       %{
+#{init_var_body}
+
 uint32_t kw_num = #{kwarg_num};
 const mrb_sym kw_names[] = {
-#{body}
+#{init_array_body}
 };
 mrb_value kw_values[kw_num];
 const mrb_kwargs kwargs = { kw_num, 0, kw_names, kw_values, NULL };
@@ -49,9 +51,9 @@ mrb_get_args(mrb, "|:", &kwargs);
     def unwrap_kwarg(kwarg_iter, body_if_defined, body_if_undefined)
       %{
 if (mrb_undef_p(kw_values[#{kwarg_iter}])) {
-#{body_if_defined}
-} else {
 #{body_if_undefined}
+} else {
+#{body_if_defined}
 }
       }
     end
@@ -63,6 +65,32 @@ if (mrb_undef_p(kw_values[#{kwarg_iter}])) {
     def define_module(module_name)
       %{struct RClass *#{module_name.downcase} = mrb_define_module(mrb, "#{module_name}");
       }
+    end
+
+    # for converting mrb to C
+    def to_c(type, variable)
+      if (type == 'int') || (type == 'unsigned int') || (type == 'bool')
+        "mrb_as_int(mrb, #{variable})"
+      elsif (type == 'float') || (type == 'double')
+        "mrb_as_float(mrb, #{variable})"
+      elsif (type == 'const char *') || (type == 'char *')
+        "mrb_str_to_cstr(mrb, #{variable})"
+      end
+    end
+
+    # for converting C to mrb
+    def to_mrb(type, variable)
+      if (type == 'int') || (type == 'unsigned int')
+        "mrb_fixnum_value(#{variable})"
+      elsif (type == 'float') || (type == 'double')
+        "mrb_float_value(mrb, #{variable})"
+      elsif type == 'bool'
+        "mrb_bool_value(#{variable})"
+      elsif (type == 'const char *') || (type == 'char *')
+        "mrb_str_new_cstr(mrb, #{variable})"
+      elsif type == 'NULL'
+        'mrb_nil_value()'
+      end
     end
 
   end
