@@ -93,6 +93,46 @@ if (mrb_undef_p(kw_values[#{kwarg_iter}])) {
       end
     end
 
+    # make a function named like a ruby one would
+    def rubify_func_name(function)
+      func = function.underscore
+      if func.start_with? 'is_'
+        func = func.delete_prefix('is_') + '?'
+      end
+      func.delete_prefix('get_')
+    end
+
+    # generate a return
+    def return_format(function, params)
+      func_rpart = function.rpartition(' ')
+      func_datatype = func_rpart.first
+      func_name = func_rpart.last
+      result = ''
+      if func_datatype == 'void'
+        if params.first == 'void'
+          result = "#{func_name}();\nreturn mrb_nil_value();"
+        else
+          result = "#{func_name}(" #);\nreturn mrb_nil_value();"
+          result += params.first.rpartition(' ').last
+
+          params.drop(1).each do |param|
+            result += ", #{param.rpartition(' ').last}"
+          end
+          result += ");\nreturn mrb_nil_value();"
+        end
+      elsif params.first == 'void'
+        result = "return " + Tplt.to_mrb(func_datatype, "#{func_name}()") + ';'
+      else
+        temp_params = params.first.rpartition(' ').last
+
+        params.drop(1).each do |param|
+          temp_params += ", #{param.rpartition(' ').last}"
+        end
+        result = 'return ' + Tplt.to_mrb(func_datatype, "#{func_name}(#{temp_params})") + ';'
+      end
+      result
+    end
+
   end
 end
 

@@ -89,48 +89,6 @@ def debug_mark_binding(func, params)
   end
 end
 
-# make a function named like a ruby one would
-def rubify_func_name(function)
-  func = function.underscore
-  if func.start_with? 'is_'
-    func = func.delete_prefix('is_') + '?'
-  end
-  func.delete_prefix('get_')
-end
-
-
-
-# generate a return
-def return_format(function, params)
-  func_rpart = function.rpartition(' ')
-  func_datatype = func_rpart.first
-  func_name = func_rpart.last
-  result = ''
-  if func_datatype == 'void'
-    if params.first == 'void'
-      result = "#{func_name}();\nreturn mrb_nil_value();"
-    else
-      result = "#{func_name}(" #);\nreturn mrb_nil_value();"
-      result += params.first.rpartition(' ').last
-
-      params.drop(1).each do |param|
-        result += ", #{param.rpartition(' ').last}"
-      end
-      result += ");\nreturn mrb_nil_value();"
-    end
-  elsif params.first == 'void'
-    result = "return " + Tplt.to_mrb(func_datatype, "#{func_name}()") + ';'
-  else
-    temp_params = params.first.rpartition(' ').last
-
-    params.drop(1).each do |param|
-      temp_params += ", #{param.rpartition(' ').last}"
-    end
-    result = 'return ' + Tplt.to_mrb(func_datatype, "#{func_name}(#{temp_params})") + ';'
-  end
-  result
-end
-
 # generates functions
 glue.first.each do |func, params|
   # func = function name with return type
@@ -143,51 +101,22 @@ glue.first.each do |func, params|
 
   # if phase 1
   if func_datatype == 'void' && params[0] == 'void'
-    body = return_format(func, params) #"#{func_name}();\nreturn mrb_nil_value();"
+    body = Tplt.return_format(func, params) #"#{func_name}();\nreturn mrb_nil_value();"
     #defines += 'PHASE 1\n'
     defines += Tplt.function(func_name, body)
-    init_body += Tplt.init_module_function('test', rubify_func_name(func_name), func_name, "MRB_ARGS_NONE()")
+    init_body += Tplt.init_module_function('test', Tplt.rubify_func_name(func_name), func_name, "MRB_ARGS_NONE()")
 
     bound[func] = params
     debug_mark_binding(func, params)
     # if phase 2
   elsif (standard_types.include? func_datatype) && (params[0] == 'void')
-    body = return_format(func, params) 
+    body = Tplt.return_format(func, params) 
     #defines += 'PHASE 2\n'
     defines += Tplt.function(func_name, body)
-    init_body += Tplt.init_module_function('test', rubify_func_name(func_name), func_name, "MRB_ARGS_NONE()")
+    init_body += Tplt.init_module_function('test', Tplt.rubify_func_name(func_name), func_name, "MRB_ARGS_NONE()")
 
     bound[func] = params
     debug_mark_binding(func, params)
-    #if func_datatype == 'int'
-    #  #body = "return mrb_fixnum_value(#{func_name}());"
-    #elsif func_datatype == 'float' || func_datatype == 'double'
-    #  #body = "return mrb_float_value(mrb, #{func_name}());"
-    #  body = return_format(func, params) 
-    #  defines += Tplt.function(func_name, body)
-    #  init_body += Tplt.init_module_function('test', rubify_func_name(func_name), func_name, "MRB_ARGS_NONE()")
-
-    #  bound[func] = params
-    #  debug_mark_binding(func, params)
-    #elsif func_datatype == 'bool'
-    #  #body = "return mrb_bool_value(#{func_name}());"
-    #  body = return_format(func, params) 
-    #  defines += Tplt.function(func_name, body)
-    #  init_body += Tplt.init_module_function('test', rubify_func_name(func_name), func_name, "MRB_ARGS_NONE()")
-
-    #  bound[func] = params
-    #  debug_mark_binding(func, params)
-
-    #elsif func_datatype == 'const char *' || func_datatype == 'char *'
-    #  # mrb_value mrb_str_new_cstr(mrb_state* , const char* )
-    #  #body = "return mrb_str_new_cstr(mrb, #{func_name}());"
-    #  body = return_format(func, params) 
-    #  defines += Tplt.function(func_name, body)
-    #  init_body += Tplt.init_module_function('test', rubify_func_name(func_name), func_name, "MRB_ARGS_NONE()")
-
-    #  bound[func] = params
-    #  debug_mark_binding(func, params)
-    #end
   elsif standard_types.include? func_datatype # accept params
     # detecting if there is no struct param(wont need this in the future)
     no_struct_param = true
@@ -202,7 +131,7 @@ glue.first.each do |func, params|
         #$phase3[func] = params
         # ---
         #body = ''
-        body = return_format(func, params) 
+        body = Tplt.return_format(func, params) 
         init_var_body = ''
         init_array_body = ''
         unwrapped_kwargs = ''
@@ -218,9 +147,9 @@ glue.first.each do |func, params|
         end
         body = Tplt.get_kwargs(params.length, init_var_body, init_array_body)
         body += unwrapped_kwargs
-        body += return_format(func, params)
+        body += Tplt.return_format(func, params)
         defines += Tplt.function(func_name, body)
-        init_body += Tplt.init_module_function('test', rubify_func_name(func_name), func_name, "MRB_ARGS_OPT(1)") # opt stuff isnt correct, need to look at this again
+        init_body += Tplt.init_module_function('test', Tplt.rubify_func_name(func_name), func_name, "MRB_ARGS_OPT(1)") # opt stuff isnt correct, need to look at this again
         # ---
         #puts func
         bound[func] = params
