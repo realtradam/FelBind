@@ -48,10 +48,10 @@ mrb_get_args(mrb, "|:", &kwargs);
       }
     end
 
-    def unwrap_kwarg(kwarg_iter, body_if_defined, body_if_undefined)
+    def unwrap_kwarg(kwarg_iter, body_if_defined, body_if_undefined = nil, no_argument_error_message = 'Missing Keyword Argument')
       %{
 if (mrb_undef_p(kw_values[#{kwarg_iter}])) {
-#{body_if_undefined}
+#{body_if_undefined || "mrb_load_string(mrb, \"raise ArgumentError.new \\\"#{no_argument_error_message}\\\"\");"}
 } else {
 #{body_if_defined}
 }
