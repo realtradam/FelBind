@@ -1,7 +1,6 @@
 require 'optparse'
 require 'json'
-require 'set'
-require 'active_record'
+require 'active_record' # use to make strings to snake_case. probably overkill
 require_relative './templates.rb'
 
 options = {}
@@ -19,8 +18,6 @@ end.parse!
 
 options[:glue] ||= './glue.json'
 glue = JSON.parse(File.read(options[:glue]))
-
-bound = {}
 
 $phase1 = {}
 $phase2 = {}
@@ -46,24 +43,23 @@ includes = %{
 }
 defines = ""
 init_body = ""
-standard_types = ['bool', 'int', 'float', 'double', 'float', 'const char *', 'unsigned int', 'void']
 
 # for displaying statistics
 glue.first.each do |func, params|
   if (func.rpartition(' ').first == 'void') && (params[0] == 'void')
     $phase1[func] = params
-  elsif (standard_types.include? func.rpartition(' ').first) && (params[0] == 'void')
+  elsif (Tplt.non_struct_types.include? func.rpartition(' ').first) && (params[0] == 'void')
     $phase2[func] = params
   else
     no_struct_param = true
     params.each do |param|
-      if !(standard_types.include? param.rpartition(' ').first)
+      if !(Tplt.non_struct_types.include? param.rpartition(' ').first)
         no_struct_param = false
         break
       end
     end
     if no_struct_param
-      if standard_types.include? func.rpartition(' ').first
+      if Tplt.non_struct_types.include? func.rpartition(' ').first
         $phase3[func] = params
       else
         $phase4[func] = params
@@ -106,28 +102,26 @@ glue.first.each do |func, params|
     defines += Tplt.function(func_name, body)
     init_body += Tplt.init_module_function('test', Tplt.rubify_func_name(func_name), func_name, "MRB_ARGS_NONE()")
 
-    bound[func] = params
     debug_mark_binding(func, params)
     # if phase 2
-  elsif (standard_types.include? func_datatype) && (params[0] == 'void')
+  elsif (Tplt.non_struct_types.include? func_datatype) && (params[0] == 'void')
     body = Tplt.return_format(func, params) 
     #defines += 'PHASE 2\n'
     defines += Tplt.function(func_name, body)
     init_body += Tplt.init_module_function('test', Tplt.rubify_func_name(func_name), func_name, "MRB_ARGS_NONE()")
 
-    bound[func] = params
     debug_mark_binding(func, params)
-  elsif standard_types.include? func_datatype # accept params
+  else Tplt.non_struct_types.include? func_datatype # accept params
     # detecting if there is no struct param(wont need this in the future)
     no_struct_param = true
     params.each do |param|
-      if !(standard_types.include? param.rpartition(' ').first)
+      if !(Tplt.non_struct_types.include? param.rpartition(' ').first)
         no_struct_param = false
         break
       end
     end
     if no_struct_param
-      if standard_types.include? func.rpartition(' ').first
+      if Tplt.non_struct_types.include? func.rpartition(' ').first
         #$phase3[func] = params
         # ---
         #body = ''
@@ -152,9 +146,11 @@ glue.first.each do |func, params|
         init_body += Tplt.init_module_function('test', Tplt.rubify_func_name(func_name), func_name, "MRB_ARGS_OPT(1)") # opt stuff isnt correct, need to look at this again
         # ---
         #puts func
-        bound[func] = params
         debug_mark_binding(func, params)
       else
+        #puts func
+        #puts params
+        #puts '---'
         #$phase4[func] = params
       end
     else

@@ -1,11 +1,13 @@
 require 'json'
 
+file_to_scan = 'raylib.h'
+
 # ctags --list-kinds=c
 # p  function prototypes
 # s  structure names
 # z  function parameters inside function or prototype definitions
 # m  struct, and union members
-parse = `ctags --output-format=json --c-kinds=pm --fields=+S --language-force=c raylib.h`
+parse = `ctags --output-format=json --c-kinds=pm --fields=+S --language-force=c #{file_to_scan}`
 File.write('json.json', parse)
 $garbage = []
 
@@ -38,7 +40,7 @@ def parse_header(path)
   [functions, structs]
 end
 
-functions, structs = parse_header('raylib.h')
+functions, structs = parse_header(file_to_scan)
 
 def debug_show(type, hash)
   puts "#{type.upcase}:"

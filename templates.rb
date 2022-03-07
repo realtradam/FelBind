@@ -14,9 +14,28 @@ mrb_mruby_#{gem_name}_gem_final(mrb_state* mrb) {
       }
     end
 
+    def non_struct_types
+      @non_struct_types ||= ['bool', 'int', 'float', 'double', 'float', 'const char *', 'unsigned int', 'void']
+    end
+
+    def init_module(module_name)
+      "struct RClass *#{module_name.downcase}_module = mrb_define_module(mrb, \"#{module_name}\");"
+    end
+
     def init_module_function(module_name, function_name, mrb_function_name, mrb_args)
       %{
       mrb_define_module_function(mrb, #{module_name}, "#{function_name}", mrb_#{mrb_function_name}, #{mrb_args});
+      }
+    end
+
+    # define under needs the C name, not the ruby name which may be confusing
+    def init_class(class_name, define_under, is_struct_wrapper = true)
+      %{
+struct RClass *#{class_name.downcase}_class = mrb_define_class_under(mrb, #{define_under}, \"#{class_name}\", mrb->object_class);"#{
+      if is_struct_wrapper
+        "\nMRB_SET_INSTANCE_TT(#{class_name.downcase}_class, MRB_TT_DATA);"
+      end
+      }
       }
     end
 
@@ -58,8 +77,18 @@ if (mrb_undef_p(kw_values[#{kwarg_iter}])) {
       }
     end
 
+
     def unwrap_struct(var_name, target, mrb_type, type)
       %{#{var_name} = DATA_GET_PTR(mrb, #{target}, &#{mrb_type}, #{type})}
+    end
+
+    def wrap_struct(var_name, target, mrb_type, type)
+      %{
+#{var_name} = (#{type} *)DATA_PTR(#{target})
+if(#{var_name}) #{'{'} mrb_free(mrb, #{var_name}); #{'}'}
+mrb_data_init(#{target}, NULL, &#{mrb_type});
+#{var_name} = (#{type} *)mrb_malloc(mrb, sizeof(#{type}));
+      }
     end
 
     def define_module(module_name)
@@ -93,7 +122,8 @@ if (mrb_undef_p(kw_values[#{kwarg_iter}])) {
       end
     end
 
-    # make a function named like a ruby one would
+    # convert a C function name to be
+    # formatted like a Ruby method name
     def rubify_func_name(function)
       func = function.underscore
       if func.start_with? 'is_'
@@ -102,7 +132,7 @@ if (mrb_undef_p(kw_values[#{kwarg_iter}])) {
       func.delete_prefix('get_')
     end
 
-    # generate a return
+    # generate a return of a ruby bound C function
     def return_format(function, params)
       func_rpart = function.rpartition(' ')
       func_datatype = func_rpart.first
@@ -112,7 +142,7 @@ if (mrb_undef_p(kw_values[#{kwarg_iter}])) {
         if params.first == 'void'
           result = "#{func_name}();\nreturn mrb_nil_value();"
         else
-          result = "#{func_name}(" #);\nreturn mrb_nil_value();"
+          result = "#{func_name}("
           result += params.first.rpartition(' ').last
 
           params.drop(1).each do |param|
@@ -131,6 +161,37 @@ if (mrb_undef_p(kw_values[#{kwarg_iter}])) {
         result = 'return ' + Tplt.to_mrb(func_datatype, "#{func_name}(#{temp_params})") + ';'
       end
       result
+    end
+
+    # wrapping an existing struct to be used by ruby
+    def init_struct_wrapper(struct, free_body = nil)
+      %{
+        #{"void mrb_helper_#{struct}_free(mrb_state*, void*);" if free_body}
+
+static const struct mrb_data_type mrb_#{struct}_struct = { 
+"#{struct}", 
+#{
+      if free_body
+        "mrb_helper_#{struct}_free"
+      else
+        "mrb_free"
+      end
+}
+      };
+      #{
+      if free_body
+
+        %{
+  void
+  mrb_helper_#{struct}_free(mrb_state* mrb, void*ptr) {
+#{struct} *struct_data = (#{struct}*)ptr;
+#{free_body}
+mrb_free(mrb, ptr);
+  }
+        }
+      end
+      }
+      }
     end
 
   end
