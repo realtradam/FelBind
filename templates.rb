@@ -15,11 +15,19 @@ mrb_mruby_#{gem_name}_gem_final(mrb_state* mrb) {
     end
 
     def non_struct_types
-      @non_struct_types ||= ['bool', 'int', 'float', 'double', 'float', 'const char *', 'unsigned int', 'void']
+      @non_struct_types ||= ['bool', 'int', 'float', 'double', 'float', 'char *', 'const char *', 'unsigned int', 'void']
     end
 
     def init_module(module_name)
       "struct RClass *#{module_name.downcase}_module = mrb_define_module(mrb, \"#{module_name}\");"
+    end
+
+    def get_module(module_name)
+      "struct RClass *#{module_name.downcase}_mrb_module = mrb_module_get(mrb, \"#{module_name}\");\n"
+    end
+
+    def get_class(class_name, defined_under)
+      "struct RClass *#{class_name.downcase}_mrb_class = mrb_class_get_under(mrb, #{defined_under.downcase}_mrb_module, mrb_#{class_name}_struct.struct_name);\n"
     end
 
     def init_module_function(module_name, function_name, mrb_function_name, mrb_args)
@@ -31,7 +39,7 @@ mrb_mruby_#{gem_name}_gem_final(mrb_state* mrb) {
     # define under needs the C name, not the ruby name which may be confusing
     def init_class(class_name, define_under, is_struct_wrapper = true)
       %{
-struct RClass *#{class_name.downcase}_class = mrb_define_class_under(mrb, #{define_under}, \"#{class_name}\", mrb->object_class);"#{
+struct RClass *#{class_name.downcase}_class = mrb_define_class_under(mrb, #{define_under}, \"#{class_name}\", mrb->object_class);#{
       if is_struct_wrapper
         "\nMRB_SET_INSTANCE_TT(#{class_name.downcase}_class, MRB_TT_DATA);"
       end
@@ -161,6 +169,13 @@ mrb_data_init(#{target}, NULL, &#{mrb_type});
         result = 'return ' + Tplt.to_mrb(func_datatype, "#{func_name}(#{temp_params})") + ';'
       end
       result
+    end
+
+    def return_format_struct(function)
+      func_rpart = function.rpartition(' ')
+      func_datatype = func_rpart.first.delete_suffix(' *')
+      func_name = func_rpart.last
+      "return mrb_obj_value(Data_Wrap_Struct(mrb, #{func_datatype.downcase}_mrb_class, &mrb_#{func_datatype}_struct, return_value));"
     end
 
     # wrapping an existing struct to be used by ruby
