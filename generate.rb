@@ -19,6 +19,9 @@ end.parse!
 options[:glue] ||= './glue.json'
 glue = JSON.parse(File.read(options[:glue]))
 
+# configuration
+Tplt.treated_as_int |= ['unsigned char']
+
 $phase1 = {}
 $phase2 = {}
 $phase3 = {}
@@ -47,7 +50,7 @@ init_body = ""
 
 
 # convert types
-# need to make this built in
+# TODO need to make this built in
 # functionality(with scanner + generator)
 glue.first.keys.each do |k|
   rpart = k.rpartition(' ')
@@ -103,9 +106,16 @@ end
 
 
 # generates structs
+# TODO
+# Auto generate struct accessors
+#
 glue.last.each do |struct, params|
   defines += Tplt.init_struct_wrapper(struct)
   init_body += Tplt.init_class(struct, 'test')
+
+  params.each do |param|
+    #puts param
+  end
 end
 
 # generates functions
@@ -118,7 +128,12 @@ glue.first.each do |func, params|
   func_datatype = rpart.first
   func_name = rpart.last
 
-  next if ['long', 'void *'].include? func_datatype
+  # TODO: just treat longs and shorts as ints
+  #
+  # since void * can be anything just skip functions
+  # (by default) that use it
+  next if ['void *'].include? func_datatype
+
 
   # if phase 1 or 2
   if (func_datatype == 'void' && params[0] == 'void') || ((Tplt.non_struct_types.include? func_datatype) && (params[0] == 'void'))
@@ -139,54 +154,49 @@ glue.first.each do |func, params|
       end
     end
     if no_struct_param
-      if true# Tplt.non_struct_types.include? func.rpartition(' ').first
-        #$phase3[func] = params
-        # ---
-        body = ''
-        #body = Tplt.return_format(func, params) 
-        init_var_body = ''
-        init_array_body = ''
-        unwrapped_kwargs = ''
-        params.each_with_index do |param, index|
-          temp = param
-          temp_rpart = temp.rpartition(' ')
-          if temp_rpart.first == 'const char *'
-            temp = 'char *' + temp_rpart.last
-          end
-          init_var_body += temp + ";\n"
-          init_array_body += "mrb_intern_lit(mrb, \"#{temp_rpart.last}\"),\n"
-          unwrapped_kwargs += Tplt.unwrap_kwarg(index, "#{temp_rpart.last} = #{Tplt.to_c(temp_rpart.first, "kw_values[#{index}]")};", nil, "#{temp_rpart.last} Argument Missing")
+      #if true# Tplt.non_struct_types.include? func.rpartition(' ').first
+      #$phase3[func] = params
+      # ---
+      body = ''
+      #body = Tplt.return_format(func, params) 
+      init_var_body = ''
+      init_array_body = ''
+      unwrapped_kwargs = ''
+      params.each_with_index do |param, index|
+        temp = param
+        temp_rpart = temp.rpartition(' ')
+        if temp_rpart.first == 'const char *'
+          temp = 'char *' + temp_rpart.last
         end
-
-        # if return isnt regular types, add struct to init
-        unless Tplt.non_struct_types.include? func_datatype
-          init_var_body += "#{func_datatype} *return_value = {0};\n"
-        end
-
-        body = Tplt.get_kwargs(params.length, init_var_body, init_array_body)
-        body += unwrapped_kwargs
-
-        # if return isnt regular types, use struct return format
-        if Tplt.non_struct_types.include? func_datatype
-          body += Tplt.return_format(func, params)
-        else
-          body += Tplt.get_module('Test')
-          body += Tplt.get_class(func_datatype, 'test')
-          body += Tplt.return_format_struct(func)
-        end
-
-        defines += "\n//#{func}"
-        defines += Tplt.function(func_name, body)
-        init_body += Tplt.init_module_function('test', Tplt.rubify_func_name(func_name), func_name, "MRB_ARGS_OPT(1)") # opt stuff isnt correct, need to look at this again
-        # ---
-        #puts func
-        debug_mark_binding(func, params)
-      else
-        #puts func
-        #puts params
-        #puts '---'
-        #$phase4[func] = params
+        init_var_body += temp + ";\n"
+        init_array_body += "mrb_intern_lit(mrb, \"#{temp_rpart.last}\"),\n"
+        unwrapped_kwargs += Tplt.unwrap_kwarg(index, "#{temp_rpart.last} = #{Tplt.to_c(temp_rpart.first, "kw_values[#{index}]")};", nil, "#{temp_rpart.last} Argument Missing")
       end
+
+      # if return isnt regular types, add struct to init
+      unless Tplt.non_struct_types.include? func_datatype
+        init_var_body += "#{func_datatype} *return_value = {0};\n"
+      end
+
+      body = Tplt.get_kwargs(params.length, init_var_body, init_array_body)
+      body += unwrapped_kwargs
+
+      # if return isnt regular types, use struct return format
+      if Tplt.non_struct_types.include? func_datatype
+        body += Tplt.return_format(func, params)
+      else
+        body += Tplt.get_module('Test')
+        body += Tplt.get_class(func_datatype, 'test')
+        body += Tplt.return_format_struct(func)
+      end
+
+      defines += "\n//#{func}"
+      defines += Tplt.function(func_name, body)
+      init_body += Tplt.init_module_function('test', Tplt.rubify_func_name(func_name), func_name, "MRB_ARGS_OPT(1)") # opt stuff isnt correct, need to look at this again
+      # ---
+      #puts func
+      debug_mark_binding(func, params)
+      #end
     else
       #$phase5[func] = params
     end

@@ -14,8 +14,33 @@ mrb_mruby_#{gem_name}_gem_final(mrb_state* mrb) {
       }
     end
 
+    attr_writer :treated_as_int
+    def treated_as_int
+      @treated_as_int ||= ['int', 'unsigned int', 'long', 'short']
+    end
+
+    attr_writer :treated_as_bool
+    def treated_as_bool
+      @treated_as_bool ||= ['bool']
+    end
+
+    attr_writer :treated_as_float
+    def treated_as_float
+      @treated_as_float ||= ['float', 'double']
+    end
+
+    attr_writer :treated_as_string
+    def treated_as_string
+      @treated_as_string ||= ['char *', 'const char *']
+    end
+
+    attr_writer :treated_as_void
+    def treated_as_void
+      @treated_as_void ||= ['void']
+    end
+
     def non_struct_types
-      @non_struct_types ||= ['bool', 'int', 'float', 'double', 'float', 'char *', 'const char *', 'unsigned int', 'void']
+      treated_as_int | treated_as_bool | treated_as_float | treated_as_string | treated_as_void
     end
 
     def init_module(module_name)
@@ -92,8 +117,8 @@ if (mrb_undef_p(kw_values[#{kwarg_iter}])) {
 
     def wrap_struct(var_name, target, mrb_type, type)
       %{
-#{var_name} = (#{type} *)DATA_PTR(#{target})
-if(#{var_name}) #{'{'} mrb_free(mrb, #{var_name}); #{'}'}
+          #{var_name} = (#{type} *)DATA_PTR(#{target})
+          if(#{var_name}) #{'{'} mrb_free(mrb, #{var_name}); #{'}'}
 mrb_data_init(#{target}, NULL, &#{mrb_type});
 #{var_name} = (#{type} *)mrb_malloc(mrb, sizeof(#{type}));
       }
@@ -106,26 +131,26 @@ mrb_data_init(#{target}, NULL, &#{mrb_type});
 
     # for converting mrb to C
     def to_c(type, variable)
-      if (type == 'int') || (type == 'unsigned int') || (type == 'bool')
+      if treated_as_int.include?(type) || treated_as_bool.include?(type)
         "mrb_as_int(mrb, #{variable})"
-      elsif (type == 'float') || (type == 'double')
+      elsif treated_as_float.include? type
         "mrb_as_float(mrb, #{variable})"
-      elsif (type == 'const char *') || (type == 'char *')
+      elsif treated_as_string.include? type
         "mrb_str_to_cstr(mrb, #{variable})"
       end
     end
 
     # for converting C to mrb
     def to_mrb(type, variable)
-      if (type == 'int') || (type == 'unsigned int')
+      if treated_as_int.include? type
         "mrb_fixnum_value(#{variable})"
-      elsif (type == 'float') || (type == 'double')
+      elsif treated_as_float.include? type
         "mrb_float_value(mrb, #{variable})"
-      elsif type == 'bool'
+      elsif treated_as_bool.include? type
         "mrb_bool_value(#{variable})"
-      elsif (type == 'const char *') || (type == 'char *')
+      elsif treated_as_string.include? type
         "mrb_str_new_cstr(mrb, #{variable})"
-      elsif type == 'NULL'
+      elsif treated_as_void.include? type
         'mrb_nil_value()'
       end
     end
@@ -205,7 +230,7 @@ mrb_free(mrb, ptr);
   }
         }
       end
-      }
+                }
       }
     end
 
