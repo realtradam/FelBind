@@ -110,14 +110,42 @@ if (mrb_undef_p(kw_values[#{kwarg_iter}])) {
       }
     end
 
+    def get_args(req_arg_hash, opt_arg_hash=nil)
+      raise if opt_arg_hash
+      result = ''
+      tail = ''
+      flags = ''
+      req_arg_hash.each do |var_name, var_datatype|
+        if var_datatype != 'unsigned char'
+          result += "#{var_datatype} #{var_name};\n"
+        else
+          result += "mrb_int #{var_name};\n"
+        end
+        tail += ", &#{var_name}"
+        flags += datatype_to_arg_flag(var_datatype)
+      end
+      result += "mrb_get_args(mrb, \"#{flags}\"#{tail});\n"
+    end
+
+    def datatype_to_arg_flag(datatype)
+      if treated_as_int.include? datatype
+        'i'
+      elsif treated_as_bool.include? datatype
+        'b'
+      elsif treated_as_float.include? datatype
+        'f'
+      elsif treated_as_string.include? datatype
+        'z'
+      end
+    end
 
     def unwrap_struct(var_name, target, mrb_type, type)
-      %{#{var_name} = DATA_GET_PTR(mrb, #{target}, &#{mrb_type}, #{type})}
+      %{#{var_name} = DATA_GET_PTR(mrb, #{target}, &#{mrb_type}, #{type});\n}
     end
 
     def wrap_struct(var_name, target, mrb_type, type)
       %{
-          #{var_name} = (#{type} *)DATA_PTR(#{target})
+          #{var_name} = (#{type} *)DATA_PTR(#{target});
           if(#{var_name}) #{'{'} mrb_free(mrb, #{var_name}); #{'}'}
 mrb_data_init(#{target}, NULL, &#{mrb_type});
 #{var_name} = (#{type} *)mrb_malloc(mrb, sizeof(#{type}));
@@ -196,11 +224,19 @@ mrb_data_init(#{target}, NULL, &#{mrb_type});
       result
     end
 
+    # doesnt seem correct?
     def return_format_struct(function)
       func_rpart = function.rpartition(' ')
       func_datatype = func_rpart.first.delete_suffix(' *')
       func_name = func_rpart.last
       "return mrb_obj_value(Data_Wrap_Struct(mrb, #{func_datatype.downcase}_mrb_class, &mrb_#{func_datatype}_struct, return_value));"
+    end
+
+    def make_mrb_obj_from_struct(mrb_var, func, struct_var)
+      func_rpart = func.rpartition(' ')
+      func_datatype = func_rpart.first.delete_suffix(' *')
+      func_name = func_rpart.last
+      "mrb_data_init(#{mrb_var}, #{struct_var}, &mrb_#{func_rpart.first}_struct);\n"
     end
 
     # wrapping an existing struct to be used by ruby
@@ -222,9 +258,9 @@ static const struct mrb_data_type mrb_#{struct}_struct = {
       if free_body
 
         %{
-  void
-  mrb_helper_#{struct}_free(mrb_state* mrb, void*ptr) {
-#{struct} *struct_data = (#{struct}*)ptr;
+        void
+        mrb_helper_#{struct}_free(mrb_state* mrb, void*ptr) {
+        #{struct} *struct_data = (#{struct}*)ptr;
 #{free_body}
 mrb_free(mrb, ptr);
   }

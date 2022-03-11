@@ -18,20 +18,24 @@ A binding assistant and generator for C/C++ to mruby(Under heavy WIP)
 	- insert bindings you made yourself
 3. Run the generator with the configuration file - this generates the resulting binding code
 
-Todo:
+#### Todo:
 
 - [X] parse C files for function and struct declarations
 - [X] plan for DSL for configuration file
 - [ ] create generator's default output
 	- [X] phase 1 - bind returnless, paramless functions
-	- [ ] phase 2 - bind standard type return functions(e.g string or int), but still paramless
+	- [X] phase 2 - bind standard type return functions(e.g string or int), but still paramless
 		- bool
 		- int
 		- float
 		- double
 		- string
-	- [ ] phase 3 - bind standard type return or params
+	- [X] phase 3 - bind standard type return or params
 	- [ ] phase 4 - bind struct construction(returning struct objects)
+		- [X] returning structs
+		- [X] accessors for values inside structs
+		- [ ] bind struct initializer
 	- [ ] phase 5 - bind struct params(unwrapping structs)
+- [ ] clean up code
 - [ ] have generator use config DSL file to customize bindings
 - [ ] do it all again for C++
