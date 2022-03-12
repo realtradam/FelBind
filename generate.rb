@@ -108,13 +108,12 @@ end
 
 $all_params = []
 $bound_params = []
-# generates structs
-# TODO
-# Auto generate struct accessors
-#
+# generates structs, accessors, and initializers
 glue.last.each do |struct, params|
   defines += Tplt.init_struct_wrapper(struct)
   init_body += Tplt.init_class(struct, LibraryName.downcase)
+
+  init_vars = ''
 
   params.each do |param|
     $all_params.push param
@@ -147,9 +146,50 @@ glue.last.each do |struct, params|
     defines += Tplt.function("#{struct}_set_#{param_name}", body)
     init_body += Tplt.init_function("#{struct.downcase}_class", "#{param_name}=", "#{struct}_set_#{param_name}", "MRB_ARGS_REQ(1)")
 
-    # init var with correct type
 
   end
+
+  # initializer
+  # init the struct(using mrb to allocate)
+  # get values
+  # assign values to struct
+  # wrap struct
+  # return self
+  body = ''
+  body += Tplt.get_module(LibraryName)
+  body += Tplt.get_class(struct, LibraryName.downcase)
+  body += "#{struct} *wrapped_value = (#{struct} *)mrb_malloc(mrb, sizeof(#{struct}));\n"
+  #body += "*wrapped_value = {0};\n" #{func_name}("
+
+  init_array_body = ''
+  unwrapped_kwargs = ''
+  params.each_with_index do |param, index|
+    temp = param
+    temp_rpart = temp.rpartition(' ')
+    #if temp_rpart.first == 'const char *'
+    #  temp = 'char *' + temp_rpart.last
+    #end
+    #init_var_body += temp + ";\n"
+    init_array_body += "mrb_intern_lit(mrb, \"#{temp_rpart.last}\"),\n"
+    #unwrapped_kwargs += Tplt.unwrap_kwarg(index, "#{temp_rpart.last} = #{Tplt.to_c(temp_rpart.first, "kw_values[#{index}]")};", nil, "#{temp_rpart.last} Argument Missing")
+    if Tplt.non_struct_types.include? temp_rpart.first
+      unwrapped_kwargs += Tplt.unwrap_kwarg(index, "wrapped_value->#{temp_rpart.last} = #{Tplt.to_c(temp_rpart.first, "kw_values[#{index}]")};\n")
+    else
+      # this is for structs or "undetermined" types
+      # doesnt work yet
+      next
+      #unwrapped_kwargs += Tplt.unwrap_kwarg(index, "wrapped_value->#{temp_rpart.last} = (#{temp_rpart.first})kw_values[#{index}];\n")
+    end
+  end
+  body += Tplt.get_kwargs(params.length, '', init_array_body)
+  body += unwrapped_kwargs
+
+  body += "mrb_data_init(self, wrapped_value, &mrb_#{struct}_struct);\n"
+  body += 'return self;'
+  defines += Tplt.function("#{struct}_initialize", body)
+  init_body += Tplt.init_function("#{struct.downcase}_class", "initialize", "#{struct}_initialize", "MRB_ARGS_OPT(1)")
+
+
 end
 
 # generates functions
@@ -221,10 +261,6 @@ glue.first.each do |func, params|
       else
         body += Tplt.get_module(LibraryName)
         body += Tplt.get_class(func_datatype, LibraryName.downcase)
-        #body += "mrb_value *object_mrb;"
-        #body += Tplt.wrap_struct('wrapped_value', '*object_mrb', "mrb_#{func_datatype}_struct" , func_datatype)
-        #body += Tplt.return_format_struct(func)
-        #body += Tplt.make_mrb_obj_from_struct("*object_mrb", func, 'wrapped_value')
         body += "#{func_datatype} *wrapped_value = (#{func_datatype} *)mrb_malloc(mrb, sizeof(#{func_datatype}));\n"
         body += "*wrapped_value = #{func_name}("
         params.each do |param|
