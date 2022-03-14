@@ -20,7 +20,7 @@ options[:glue] ||= './glue.json'
 glue = JSON.parse(File.read(options[:glue]))
 
 # configuration
-Tplt.treated_as_int |= ['unsigned char']
+#Template.treated_as_int |= ['unsigned char']
 LibraryName = 'Test'
 
 $phase1 = {}
@@ -34,8 +34,8 @@ $complete_phase3 = {}
 $complete_phase4 = {}
 $complete_phase5 = {}
 
-result = ""
-includes = %{
+$result = ""
+$includes = %{
 #include <raylib.h>
 #include <mruby.h>
 #include <mruby/array.h>
@@ -46,10 +46,14 @@ includes = %{
 #include <mruby/compile.h>
 #include <stdlib.h>
 }
-defines = ""
-init_body = ""
 
 
+$defines = ""
+$init_body = ""
+Template.parse_struct_types(glue.last)
+
+
+=begin
 # convert types
 # TODO need to make this built in
 # functionality(with scanner + generator)
@@ -89,7 +93,7 @@ glue.first.each do |func, params|
     end
   end
 end
-
+=end
 # also for display statistics
 def debug_mark_binding(func, params)
   if $phase1.include? func
@@ -105,13 +109,13 @@ def debug_mark_binding(func, params)
   end
 end
 
-
+=begin
 $all_params = []
 $bound_params = []
 # generates structs, accessors, and initializers
 glue.last.each do |struct, params|
-  defines += Tplt.init_struct_wrapper(struct)
-  init_body += Tplt.init_class(struct, LibraryName.downcase)
+  $defines += Tplt.init_struct_wrapper(struct)
+  $init_body += Tplt.init_class(struct, LibraryName.downcase)
 
   init_vars = ''
 
@@ -130,8 +134,8 @@ glue.last.each do |struct, params|
     # return(using correct type conversion)
     body = Tplt.unwrap_struct("#{struct} *struct_#{struct.downcase}", 'self', "mrb_#{struct}_struct", struct)
     body += "return #{Tplt.to_mrb(param_datatype, "struct_#{struct.downcase}->#{param_name}")};\n"
-    defines += Tplt.function("#{struct}_get_#{param_name}", body)
-    init_body += Tplt.init_function("#{struct.downcase}_class", param_name, "#{struct}_get_#{param_name}", "MRB_ARGS_NONE()")
+    $defines += Tplt.function("#{struct}_get_#{param_name}", body)
+    $init_body += Tplt.init_function("#{struct.downcase}_class", param_name, "#{struct}_get_#{param_name}", "MRB_ARGS_NONE()")
 
     # setter
     # init var of correct type
@@ -143,8 +147,8 @@ glue.last.each do |struct, params|
     body += Tplt.unwrap_struct("#{struct} *struct_#{struct.downcase}", 'self', "mrb_#{struct}_struct", struct)
     body += "struct_#{struct.downcase}->#{param_name} = #{param_name};\n"
     body += "return #{Tplt.to_mrb(param_datatype, param_name)};\n"
-    defines += Tplt.function("#{struct}_set_#{param_name}", body)
-    init_body += Tplt.init_function("#{struct.downcase}_class", "#{param_name}=", "#{struct}_set_#{param_name}", "MRB_ARGS_REQ(1)")
+    $defines += Tplt.function("#{struct}_set_#{param_name}", body)
+    $init_body += Tplt.init_function("#{struct.downcase}_class", "#{param_name}=", "#{struct}_set_#{param_name}", "MRB_ARGS_REQ(1)")
 
 
   end
@@ -186,12 +190,12 @@ glue.last.each do |struct, params|
 
   body += "mrb_data_init(self, wrapped_value, &mrb_#{struct}_struct);\n"
   body += 'return self;'
-  defines += Tplt.function("#{struct}_initialize", body)
-  init_body += Tplt.init_function("#{struct.downcase}_class", "initialize", "#{struct}_initialize", "MRB_ARGS_OPT(1)")
+  $defines += Tplt.function("#{struct}_initialize", body)
+  $init_body += Tplt.init_function("#{struct.downcase}_class", "initialize", "#{struct}_initialize", "MRB_ARGS_OPT(1)")
 
 
 end
-
+=end
 # generates functions
 glue.first.each do |func, params|
   # func = function name with return type
@@ -205,19 +209,40 @@ glue.first.each do |func, params|
   # since void * can be anything just skip functions
   # (by default) that use it
   next if ['void *'].include? func_datatype
+  unless Template.valid_types =~ func_datatype
+    puts "// \"#{func_datatype}\" is not a function return datatype that can be currently autobound. From function: \"#{func_name}\"\n\n"
+    next
+  end
 
   body = ''
 
-  body += Template::C.initialize_variables(params, glue.last)
-  #TODO CONTINUE HERE
+  body += Template::C.initialize_variables(params, glue.last, func_name)
+
+  body += Template::C.get_kwargs(params)
+
+  # TODO fix to use structs
+  body += Template::C.parse_kwargs(params)
+
+  body += "\n" # formatting
+
+  body += Template.format_method_call(func_datatype, func_name, params, Template.struct_types =~ func_datatype)
+
+  # wrap return struct here
+
+  body += Template.format_return(func_datatype, func_name)
+
+  puts body
+  # TODO CONTINUE HERE
+  puts "--- NEXT ---"
+  next
 
   # if phase 1 or 2
   if (func_datatype == 'void' && params[0] == 'void') || ((Tplt.non_struct_types.include? func_datatype) && (params[0] == 'void'))
     body = Tplt.return_format(func, params)
-    #defines += 'PHASE 1\n'
-    defines += "\n//#{func}"
-    defines += Tplt.function(func_name, body)
-    init_body += Tplt.init_module_function(LibraryName.downcase, Tplt.rubify_func_name(func_name), func_name, "MRB_ARGS_NONE()")
+    #$defines += 'PHASE 1\n'
+    $defines += "\n//#{func}"
+    $defines += Tplt.function(func_name, body)
+    $init_body += Tplt.init_module_function(LibraryName.downcase, Tplt.rubify_func_name(func_name), func_name, "MRB_ARGS_NONE()")
 
     debug_mark_binding(func, params)
   else Tplt.non_struct_types.include? func_datatype # accept params
@@ -274,9 +299,9 @@ glue.first.each do |func, params|
         body += "return mrb_obj_value(Data_Wrap_Struct(mrb, #{func_datatype.downcase}_mrb_class, &mrb_#{func_datatype}_struct, wrapped_value));"
       end
 
-      defines += "\n//#{func}"
-      defines += Tplt.function(func_name, body)
-      init_body += Tplt.init_module_function(LibraryName.downcase, Tplt.rubify_func_name(func_name), func_name, "MRB_ARGS_OPT(1)") # opt stuff isnt correct, need to look at this again
+      $defines += "\n//#{func}"
+      $defines += Tplt.function(func_name, body)
+      $init_body += Tplt.init_module_function(LibraryName.downcase, Tplt.rubify_func_name(func_name), func_name, "MRB_ARGS_OPT(1)") # opt stuff isnt correct, need to look at this again
       # ---
       #puts func
       debug_mark_binding(func, params)
@@ -286,27 +311,28 @@ glue.first.each do |func, params|
     end
   end
 end
+raise 'end of testing'
 
-init_body.prepend(Tplt.define_module(LibraryName))
+$init_body.prepend(Tplt.define_module(LibraryName))
 
-result = %{
-#{includes}
-#{defines}
-#{Tplt.base(LibraryName.downcase, init_body, nil)}
+$result = %{
+#{$includes}
+#{$defines}
+#{Tplt.base(LibraryName.downcase, $init_body, nil)}
 }
 
-result += "//Bound Functions: #{$complete_phase1.length + $complete_phase2.length + $complete_phase3.length + $complete_phase4.length + $complete_phase5.length} / #{$phase1.length + $phase2.length + $phase3.length + $phase4.length + $phase5.length}\n//---\n"
+$result += "//Bound Functions: #{$complete_phase1.length + $complete_phase2.length + $complete_phase3.length + $complete_phase4.length + $complete_phase5.length} / #{$phase1.length + $phase2.length + $phase3.length + $phase4.length + $phase5.length}\n//---\n"
 
-result += "//Phase 1 Functions: #{$complete_phase1.length} / #{$phase1.length}\n"
-result += "//Phase 2 Functions: #{$complete_phase2.length} / #{$phase2.length}\n"
-result += "//Phase 3 Functions: #{$complete_phase3.length} / #{$phase3.length}\n"
-result += "//Phase 4 Functions: #{$complete_phase4.length} / #{$phase4.length}\n"
-result += "//Phase 5 Functions: #{$complete_phase5.length} / #{$phase5.length}\n"
-result += "\n"
-result += "//Struct Accessors: #{$bound_params.length} / #{$all_params.length}\n"
+$result += "//Phase 1 Functions: #{$complete_phase1.length} / #{$phase1.length}\n"
+$result += "//Phase 2 Functions: #{$complete_phase2.length} / #{$phase2.length}\n"
+$result += "//Phase 3 Functions: #{$complete_phase3.length} / #{$phase3.length}\n"
+$result += "//Phase 4 Functions: #{$complete_phase4.length} / #{$phase4.length}\n"
+$result += "//Phase 5 Functions: #{$complete_phase5.length} / #{$phase5.length}\n"
+$result += "\n"
+$result += "//Struct Accessors: #{$bound_params.length} / #{$all_params.length}\n"
 
 
-puts result
+puts $result
 
 #$phase4.reverse_each do |key, elem|
 #  puts '---'
