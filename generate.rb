@@ -202,12 +202,14 @@ glue.first.each do |func, params|
   func_datatype = rpart.first
   func_name = rpart.last
 
-  # TODO: just treat longs and shorts as ints
-  #
   # since void * can be anything just skip functions
   # (by default) that use it
   next if ['void *'].include? func_datatype
 
+  body = ''
+
+  body += Template::C.initialize_variables(params, glue.last)
+  #TODO CONTINUE HERE
 
   # if phase 1 or 2
   if (func_datatype == 'void' && params[0] == 'void') || ((Tplt.non_struct_types.include? func_datatype) && (params[0] == 'void'))

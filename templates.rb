@@ -1,10 +1,129 @@
-module Tplt # Template
+module Template # Template
   class << self
+
+    # could be unsigned
+    attr_writer :treated_as_int
+    def treated_as_int
+      @treated_as_int ||= /^((un)?signed )?int$|^((un)?signed )?long$|^((un)?signed )?short$|^((un)?signed )char$/
+    end
+
+    attr_writer :treated_as_bool
+    def treated_as_bool
+      @treated_as_bool ||= /^bool$/
+    end
+
+    attr_writer :treated_as_float
+    def treated_as_float
+      @treated_as_float ||= /^float$|^double$/
+    end
+
+    attr_writer :treated_as_string
+    def treated_as_string
+      @treated_as_string ||= /^(const )?char \*$/
+    end
+
+    attr_writer :treated_as_void
+    def treated_as_void
+      @treated_as_void ||= /^void$/
+    end
+
+    def non_struct_types
+      @non_struct_types ||= Regexp.union(treated_as_int, treated_as_bool, treated_as_float, treated_as_string, treated_as_void)
+    end
+
+    def valid_type?(
+      @valid_type ||= 
+
+      module C
+        class << self
+          def to_c_function_name(function_name:)
+            "mrb_#{function_name}"
+          end
+
+          def to_getter_name(struct_name:, variable_name:)
+            "mrb_#{struct_name}_get_#{variable_name}"
+          end
+
+          def to_setter_name(struct_name:, variable_name:)
+            "mrb_#{struct_name}_set_#{variable_name}"
+          end
+
+          def to_initializer_name(struct_name:)
+            "mrb_#{struct_name}_initialize"
+          end
+
+          def format_type(param_datatype, structs)
+            if !structs[param_datatype].nil?
+              param_datatype
+            elsif Template.treated_as_int =~ param
+              'int'
+            elsif Template.treated_as_bool =~ param
+              'bool'
+            elsif Template.treated_as_float =~ param
+              'float'
+            elsif Template.treated_as_string =~ param
+              'char *'
+            else
+              nil # cannot be formated
+            end
+          end
+
+        end
+
+        def initialize_variables(params, structs)
+          result = ''
+          params.each do |param|
+            rpart = param.rpartition(' ')
+            format = Template::C.format_type(rpart.first, structs)
+            if format
+              result += Template::C.format_type(rpart.first, structs) + "\n"
+            end
+          end
+          result
+        end
+
+      end
+    end
+
+    module MRuby
+      class << self
+        # convert a C function name to be
+        # formatted like a Ruby method name
+        def rubify_func_name(function)
+          func = function.underscore
+          if func.start_with? 'is_'
+            func = func.delete_prefix('is_') + '?'
+          elsif func.start_with? 'set_'
+            func = func.delete_prefix('set_') + '='
+          else
+            func.delete_prefix('get_')
+          end
+          func
+        end
+
+        def to_c_function_name(function_name:)
+          rubify_func_name(function_name)
+        end
+
+        def to_getter_name(struct_name:, variable_name: nil)
+          rubify_func_name(variable_name)
+        end
+
+        def to_setter_name(struct_name:, variable_name: nil)
+          rubify_func_name(variable_name) + '='
+        end
+
+        def to_initializer_name(struct_name: nil)
+          "initialize"
+        end
+      end
+    end
+
     def base(gem_name, init_body, final_body)
       %{
-void
-mrb_mruby_#{gem_name}_gem_init(mrb_state* mrb) {
-#{init_body}
+      void
+      mrb_mruby_#{gem_name}_gem_init(mrb_state* mrb) {
+      #{init_body}
 }
 
 void
@@ -12,35 +131,6 @@ mrb_mruby_#{gem_name}_gem_final(mrb_state* mrb) {
 #{final_body}
 }
       }
-    end
-
-    attr_writer :treated_as_int
-    def treated_as_int
-      @treated_as_int ||= ['int', 'unsigned int', 'long', 'short']
-    end
-
-    attr_writer :treated_as_bool
-    def treated_as_bool
-      @treated_as_bool ||= ['bool']
-    end
-
-    attr_writer :treated_as_float
-    def treated_as_float
-      @treated_as_float ||= ['float', 'double']
-    end
-
-    attr_writer :treated_as_string
-    def treated_as_string
-      @treated_as_string ||= ['char *', 'const char *']
-    end
-
-    attr_writer :treated_as_void
-    def treated_as_void
-      @treated_as_void ||= ['void']
-    end
-
-    def non_struct_types
-      treated_as_int | treated_as_bool | treated_as_float | treated_as_string | treated_as_void
     end
 
     def init_module(module_name)
@@ -64,11 +154,11 @@ mrb_mruby_#{gem_name}_gem_final(mrb_state* mrb) {
     # define under needs the C name, not the ruby name which may be confusing
     def init_class(class_name, define_under, is_struct_wrapper = true)
       %{
-struct RClass *#{class_name.downcase}_class = mrb_define_class_under(mrb, #{define_under}, \"#{class_name}\", mrb->object_class);#{
+        struct RClass *#{class_name.downcase}_class = mrb_define_class_under(mrb, #{define_under}, \"#{class_name}\", mrb->object_class);#{
       if is_struct_wrapper
         "\nMRB_SET_INSTANCE_TT(#{class_name.downcase}_class, MRB_TT_DATA);"
       end
-      }
+}
       }
     end
 
@@ -145,9 +235,9 @@ if (mrb_undef_p(kw_values[#{kwarg_iter}])) {
 
     def wrap_struct(var_name, target, mrb_type, type)
       %{
-          #{var_name} = (#{type} *)DATA_PTR(#{target});
-          if(#{var_name}) #{'{'} mrb_free(mrb, #{var_name}); #{'}'}
-mrb_data_init(#{target}, NULL, &#{mrb_type});
+        #{var_name} = (#{type} *)DATA_PTR(#{target});
+        if(#{var_name}) #{'{'} mrb_free(mrb, #{var_name}); #{'}'}
+            mrb_data_init(#{target}, NULL, &#{mrb_type});
 #{var_name} = (#{type} *)mrb_malloc(mrb, sizeof(#{type}));
       }
     end
@@ -183,15 +273,6 @@ mrb_data_init(#{target}, NULL, &#{mrb_type});
       end
     end
 
-    # convert a C function name to be
-    # formatted like a Ruby method name
-    def rubify_func_name(function)
-      func = function.underscore
-      if func.start_with? 'is_'
-        func = func.delete_prefix('is_') + '?'
-      end
-      func.delete_prefix('get_')
-    end
 
     # generate a return of a ruby bound C function
     def return_format(function, params)
@@ -252,9 +333,9 @@ static const struct mrb_data_type mrb_#{struct}_struct = {
       else
         "mrb_free"
       end
-}
-      };
-      #{
+        }
+        };
+        #{
       if free_body
 
         %{
@@ -266,7 +347,7 @@ mrb_free(mrb, ptr);
   }
         }
       end
-                }
+          }
       }
     end
 
