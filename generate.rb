@@ -53,7 +53,6 @@ $init_body = ""
 Template.parse_struct_types(glue.last)
 
 
-=begin
 # convert types
 # TODO need to make this built in
 # functionality(with scanner + generator)
@@ -68,22 +67,35 @@ glue.first.keys.each do |k|
   end
 end
 
+glue.first.each do |params|
+  params[1].map! do |param|
+    rpart = param.rpartition(' ')
+
+    if ['Texture2D'].include? rpart.first
+      "Texture #{rpart.last}"
+    elsif ['RenderTexture2D'].include? rpart.first
+      "RenderTexture #{rpart.last}"
+    else
+      param
+    end
+  end
+end
 # for displaying statistics
 glue.first.each do |func, params|
   if (func.rpartition(' ').first == 'void') && (params[0] == 'void')
     $phase1[func] = params
-  elsif (Tplt.non_struct_types.include? func.rpartition(' ').first) && (params[0] == 'void')
+  elsif (Template.non_struct_types =~ func.rpartition(' ').first) && (params[0] == 'void')
     $phase2[func] = params
   else
     no_struct_param = true
     params.each do |param|
-      if !(Tplt.non_struct_types.include? param.rpartition(' ').first)
+      if !(Template.non_struct_types =~ param.rpartition(' ').first)
         no_struct_param = false
         break
       end
     end
     if no_struct_param
-      if Tplt.non_struct_types.include? func.rpartition(' ').first
+      if Template.non_struct_types =~ func.rpartition(' ').first
         $phase3[func] = params
       else
         $phase4[func] = params
@@ -93,7 +105,6 @@ glue.first.each do |func, params|
     end
   end
 end
-=end
 # also for display statistics
 def debug_mark_binding(func, params)
   if $phase1.include? func
@@ -109,93 +120,91 @@ def debug_mark_binding(func, params)
   end
 end
 
-=begin
 $all_params = []
 $bound_params = []
 # generates structs, accessors, and initializers
 glue.last.each do |struct, params|
-  $defines += Tplt.init_struct_wrapper(struct)
-  $init_body += Tplt.init_class(struct, LibraryName.downcase)
+  $defines += Template.init_struct_wrapper(struct)
+  $init_body += Template.init_class(struct, LibraryName.downcase)
 
-  init_vars = ''
+  #init_vars = ''
 
-  params.each do |param|
-    $all_params.push param
-    rpart = param.rpartition(' ')
-    param_datatype = rpart.first
-    param_name = rpart.last
+  #params.each do |param|
+  #  $all_params.push param
+  #  rpart = param.rpartition(' ')
+  #  param_datatype = rpart.first
+  #  param_name = rpart.last
 
-    next unless Tplt.non_struct_types.include? param_datatype
-    $bound_params.push param
+  #  next unless Tplt.non_struct_types.include? param_datatype
+  #  $bound_params.push param
 
-    # getter
-    # take no params
-    # unwrap struct
-    # return(using correct type conversion)
-    body = Tplt.unwrap_struct("#{struct} *struct_#{struct.downcase}", 'self', "mrb_#{struct}_struct", struct)
-    body += "return #{Tplt.to_mrb(param_datatype, "struct_#{struct.downcase}->#{param_name}")};\n"
-    $defines += Tplt.function("#{struct}_get_#{param_name}", body)
-    $init_body += Tplt.init_function("#{struct.downcase}_class", param_name, "#{struct}_get_#{param_name}", "MRB_ARGS_NONE()")
+  #  # getter
+  #  # take no params
+  #  # unwrap struct
+  #  # return(using correct type conversion)
+  #  body = Tplt.unwrap_struct("#{struct} *struct_#{struct.downcase}", 'self', "mrb_#{struct}_struct", struct)
+  #  body += "return #{Tplt.to_mrb(param_datatype, "struct_#{struct.downcase}->#{param_name}")};\n"
+  #  $defines += Tplt.function("#{struct}_get_#{param_name}", body)
+  #  $init_body += Tplt.init_function("#{struct.downcase}_class", param_name, "#{struct}_get_#{param_name}", "MRB_ARGS_NONE()")
 
-    # setter
-    # init var of correct type
-    # take 1 arg param
-    # unwrap struct
-    # set value in struct
-    # return same value
-    body = Tplt.get_args({ "#{param_name}": "#{param_datatype}" })
-    body += Tplt.unwrap_struct("#{struct} *struct_#{struct.downcase}", 'self', "mrb_#{struct}_struct", struct)
-    body += "struct_#{struct.downcase}->#{param_name} = #{param_name};\n"
-    body += "return #{Tplt.to_mrb(param_datatype, param_name)};\n"
-    $defines += Tplt.function("#{struct}_set_#{param_name}", body)
-    $init_body += Tplt.init_function("#{struct.downcase}_class", "#{param_name}=", "#{struct}_set_#{param_name}", "MRB_ARGS_REQ(1)")
+  #  # setter
+  #  # init var of correct type
+  #  # take 1 arg param
+  #  # unwrap struct
+  #  # set value in struct
+  #  # return same value
+  #  body = Tplt.get_args({ "#{param_name}": "#{param_datatype}" })
+  #  body += Tplt.unwrap_struct("#{struct} *struct_#{struct.downcase}", 'self', "mrb_#{struct}_struct", struct)
+  #  body += "struct_#{struct.downcase}->#{param_name} = #{param_name};\n"
+  #  body += "return #{Tplt.to_mrb(param_datatype, param_name)};\n"
+  #  $defines += Tplt.function("#{struct}_set_#{param_name}", body)
+  #  $init_body += Tplt.init_function("#{struct.downcase}_class", "#{param_name}=", "#{struct}_set_#{param_name}", "MRB_ARGS_REQ(1)")
 
 
-  end
+  #end
 
-  # initializer
+  ## initializer
   # init the struct(using mrb to allocate)
   # get values
   # assign values to struct
   # wrap struct
   # return self
-  body = ''
-  body += Tplt.get_module(LibraryName)
-  body += Tplt.get_class(struct, LibraryName.downcase)
-  body += "#{struct} *wrapped_value = (#{struct} *)mrb_malloc(mrb, sizeof(#{struct}));\n"
-  #body += "*wrapped_value = {0};\n" #{func_name}("
+  #body = ''
+  #body += Tplt.get_module(LibraryName)
+  #body += Tplt.get_class(struct, LibraryName.downcase)
+  #body += "#{struct} *wrapped_value = (#{struct} *)mrb_malloc(mrb, sizeof(#{struct}));\n"
+  ##body += "*wrapped_value = {0};\n" #{func_name}("
 
-  init_array_body = ''
-  unwrapped_kwargs = ''
-  params.each_with_index do |param, index|
-    temp = param
-    temp_rpart = temp.rpartition(' ')
-    #if temp_rpart.first == 'const char *'
-    #  temp = 'char *' + temp_rpart.last
-    #end
-    #init_var_body += temp + ";\n"
-    init_array_body += "mrb_intern_lit(mrb, \"#{temp_rpart.last}\"),\n"
-    #unwrapped_kwargs += Tplt.unwrap_kwarg(index, "#{temp_rpart.last} = #{Tplt.to_c(temp_rpart.first, "kw_values[#{index}]")};", nil, "#{temp_rpart.last} Argument Missing")
-    if Tplt.non_struct_types.include? temp_rpart.first
-      unwrapped_kwargs += Tplt.unwrap_kwarg(index, "wrapped_value->#{temp_rpart.last} = #{Tplt.to_c(temp_rpart.first, "kw_values[#{index}]")};\n")
-    else
-      # this is for structs or "undetermined" types
-      # doesnt work yet
-      next
-      #unwrapped_kwargs += Tplt.unwrap_kwarg(index, "wrapped_value->#{temp_rpart.last} = (#{temp_rpart.first})kw_values[#{index}];\n")
-    end
-  end
-  body += Tplt.get_kwargs(params.length, '', init_array_body)
-  body += unwrapped_kwargs
+  #init_array_body = ''
+  #unwrapped_kwargs = ''
+  #params.each_with_index do |param, index|
+  #  temp = param
+  #  temp_rpart = temp.rpartition(' ')
+  #  #if temp_rpart.first == 'const char *'
+  #  #  temp = 'char *' + temp_rpart.last
+  #  #end
+  #  #init_var_body += temp + ";\n"
+  #  init_array_body += "mrb_intern_lit(mrb, \"#{temp_rpart.last}\"),\n"
+  #  #unwrapped_kwargs += Tplt.unwrap_kwarg(index, "#{temp_rpart.last} = #{Tplt.to_c(temp_rpart.first, "kw_values[#{index}]")};", nil, "#{temp_rpart.last} Argument Missing")
+  #  if Tplt.non_struct_types.include? temp_rpart.first
+  #    unwrapped_kwargs += Tplt.unwrap_kwarg(index, "wrapped_value->#{temp_rpart.last} = #{Tplt.to_c(temp_rpart.first, "kw_values[#{index}]")};\n")
+  #  else
+  #    # this is for structs or "undetermined" types
+  #    # doesnt work yet
+  #    next
+  #    #unwrapped_kwargs += Tplt.unwrap_kwarg(index, "wrapped_value->#{temp_rpart.last} = (#{temp_rpart.first})kw_values[#{index}];\n")
+  #  end
+  #end
+  #body += Tplt.get_kwargs(params.length, '', init_array_body)
+  #body += unwrapped_kwargs
 
-  body += "mrb_data_init(self, wrapped_value, &mrb_#{struct}_struct);\n"
-  body += 'return self;'
-  $defines += Tplt.function("#{struct}_initialize", body)
-  $init_body += Tplt.init_function("#{struct.downcase}_class", "initialize", "#{struct}_initialize", "MRB_ARGS_OPT(1)")
+  #body += "mrb_data_init(self, wrapped_value, &mrb_#{struct}_struct);\n"
+  #body += 'return self;'
+  #$defines += Tplt.function("#{struct}_initialize", body)
+  #$init_body += Tplt.init_function("#{struct.downcase}_class", "initialize", "#{struct}_initialize", "MRB_ARGS_OPT(1)")
 
 
 end
-=end
 # generates functions
 glue.first.each do |func, params|
   # func = function name with return type
@@ -205,6 +214,19 @@ glue.first.each do |func, params|
   rpart = func.rpartition(' ')
   func_datatype = rpart.first
   func_name = rpart.last
+
+  # TODO make a skip detector(what functions to skip bindings)
+  skip = false
+  params.each do |param|
+    if param.chars.include? '*'
+      unless /char \*$/ =~ param.rpartition(' ').first
+        skip = true
+        break
+      end
+    end
+  end
+  next if skip
+  next if ['SetTraceLogCallback', 'SetSaveFileTextCallback', 'SetSaveFileDataCallback', 'SetLoadFileTextCallback', 'SetLoadFileDataCallback', 'SetCameraMode', 'GetWorldToScreenEx', 'GetWorldToScreen', 'GetMouseRay', 'GetCameraMatrix', 'DrawBillboardRec', 'DrawBillboardPro', 'DrawBillboard'].include? func_name
 
   # since void * can be anything just skip functions
   # (by default) that use it
@@ -220,22 +242,26 @@ glue.first.each do |func, params|
 
   body += Template::C.get_kwargs(params)
 
-  # TODO fix to use structs
   body += Template::C.parse_kwargs(params)
-
   body += "\n" # formatting
 
-  body += Template.format_method_call(func_datatype, func_name, params, Template.struct_types =~ func_datatype)
+  body += Template::C.initialize_return_var(func_datatype, func_name)
+  body += "\n" # formatting
 
-  # wrap return struct here
+  body += Template.format_set_method_call(func_datatype, func_name, params, Template.struct_types =~ func_datatype)
 
   body += Template.format_return(func_datatype, func_name)
 
-  puts body
-  # TODO CONTINUE HERE
-  puts "--- NEXT ---"
-  next
+  $defines += "\n//#{func}"
+  $defines += Template.function(func_name, body)
+  $init_body += Template.init_module_function(LibraryName.downcase, Template::MRuby.rubify_func_name(func_name), func_name, "MRB_ARGS_OPT(1)")
 
+  debug_mark_binding(func, params)
+  #puts body
+  # TODO CONTINUE HERE
+  #puts "// --- NEXT ---"
+  #next
+=begin
   # if phase 1 or 2
   if (func_datatype == 'void' && params[0] == 'void') || ((Tplt.non_struct_types.include? func_datatype) && (params[0] == 'void'))
     body = Tplt.return_format(func, params)
@@ -312,13 +338,14 @@ glue.first.each do |func, params|
   end
 end
 raise 'end of testing'
-
-$init_body.prepend(Tplt.define_module(LibraryName))
+=end
+end
+$init_body.prepend(Template.define_module(LibraryName))
 
 $result = %{
 #{$includes}
 #{$defines}
-#{Tplt.base(LibraryName.downcase, $init_body, nil)}
+#{Template.base(LibraryName.downcase, $init_body, nil)}
 }
 
 $result += "//Bound Functions: #{$complete_phase1.length + $complete_phase2.length + $complete_phase3.length + $complete_phase4.length + $complete_phase5.length} / #{$phase1.length + $phase2.length + $phase3.length + $phase4.length + $phase5.length}\n//---\n"
@@ -329,8 +356,23 @@ $result += "//Phase 3 Functions: #{$complete_phase3.length} / #{$phase3.length}\
 $result += "//Phase 4 Functions: #{$complete_phase4.length} / #{$phase4.length}\n"
 $result += "//Phase 5 Functions: #{$complete_phase5.length} / #{$phase5.length}\n"
 $result += "\n"
-$result += "//Struct Accessors: #{$bound_params.length} / #{$all_params.length}\n"
+#$result += "//Struct Accessors: #{$bound_params.length} / #{$all_params.length}\n"
 
+#pp ($phase3.keys - $complete_phase3.keys)
+#puts
+#pp $complete_phase3
+
+all_completed = $complete_phase1.keys | $complete_phase2.keys | $complete_phase3.keys | $complete_phase4.keys | $complete_phase5.keys
+all = $phase1.keys | $phase2.keys | $phase3.keys | $phase4.keys | $phase5.keys
+
+
+(all - all_completed).each do |unbound|
+  $result += "//#{unbound}\n"
+end
+
+($phase4.keys - $complete_phase4.keys).each do |ye|
+  puts ye
+end
 
 puts $result
 

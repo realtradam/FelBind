@@ -50,13 +50,26 @@ module Template # Template
           rpart = param.rpartition(' ')
           format = Template::C.format_type(rpart.first)
           if format
-            result += format + " #{Template::C.convention_parameter(rpart.last)};\n"
+            result += format + " #{'*' if Template.struct_types =~ rpart.first}#{Template::C.convention_parameter(rpart.last)};\n"
           elsif !func_name.nil?
-            puts "// \"#{rpart.first}\" is not a parameter datatype that can be currently autobound. From function: \"#{func_name}\" and param: #{rpart.first}\n\n"
-            raise
+            puts "// \"#{rpart.first}\" is not a parameter datatype that can be currently autobound. From function: \"#{func_name}\" and param: #{rpart.last}\n\n"
+            #raise
           end
         end
         result + "\n"
+      end
+
+      def initialize_return_var(func_datatype, func_name)
+        return '' if func_datatype == 'void'
+        result = ''
+        if Template.struct_types =~ func_datatype
+          result += Template.get_module('Test')
+          result += Template.get_class(func_datatype, 'Test')
+          result += "#{func_datatype} *#{Template::C.convention_return_variable(func_name)} = (#{func_datatype} *)mrb_malloc(mrb, sizeof(#{func_datatype}));\n"
+        else
+          result += "#{func_datatype} #{Template::C.convention_return_variable(func_name)};\n"
+        end
+        result
       end
 
       def get_kwargs(params)
@@ -81,9 +94,18 @@ mrb_get_args(mrb, "|:", &kwargs);
         skipped = 0
         params.each_with_index do |param, index|
           rpart = param.rpartition(' ')
-          (skipped += 1) && next unless Template.valid_types =~ rpart.first
-          unwrap = "#{Template::C.convention_parameter(rpart.last)} = #{Template.to_c(rpart.first, "kw_values[#{index - skipped}]")};"
-          result += Template::C.unwrap_kwarg(index - skipped,unwrap)
+          if Template.struct_types =~ rpart.first
+
+            unwrap = Template.unwrap_struct(Template::C.convention_parameter(rpart.last), "kw_values[#{index - skipped}]", "mrb_#{rpart.first}_struct", rpart.first)
+
+            result += Template::C.unwrap_kwarg(index - skipped,unwrap)
+          elsif Template.non_struct_types =~ rpart.first
+            unwrap = "#{Template::C.convention_parameter(rpart.last)} = #{Template.to_c(rpart.first, "kw_values[#{index - skipped}]")};"
+            result += Template::C.unwrap_kwarg(index - skipped,unwrap)
+          else
+            skipped += 1
+            next
+          end
         end
         result
       end
@@ -206,15 +228,28 @@ mrb_mruby_#{gem_name}_gem_final(mrb_state* mrb) {
 
     def format_method_call(func_datatype, func_name, params, is_struct=false)
       result = ''
-      if params.first == 'void'
-        result += "return #{'*' if is_struct}#{Template::C.convention_return_variable(func_name)} = "
-      end
+      #if params.first == 'void'
+      #  result += "return #{'*' if is_struct}#{Template::C.convention_return_variable(func_name)} = "
+      #end
       result += "#{func_name}("
-      params.each do |param|
-        rpart = param.rpartition(' ')
-        result += "#{rpart.last}, "
+      unless params.first == 'void'
+        params.each do |param|
+          rpart = param.rpartition(' ')
+          result += "#{'*' if Template.struct_types =~ rpart.first}#{Template::C.convention_parameter(rpart.last)}, "
+        end
       end
-      result.delete_suffix(', ') + ");\n"
+      result.delete_suffix(', ') + ")"
+    end
+
+    def format_set_method_call(func_datatype, func_name, params, is_struct=false)
+      result = format_method_call(func_datatype, func_name, params, is_struct) + ";\n"
+      unless func_datatype == 'void'
+        result = "#{Template::C.convention_return_variable(func_name)} = #{result}"
+        if is_struct
+          result = '*' + result
+        end
+      end
+      result
     end
 
     def format_return(func_datatype, func_name)
@@ -242,11 +277,11 @@ mrb_mruby_#{gem_name}_gem_final(mrb_state* mrb) {
     # define under needs the C name, not the ruby name which may be confusing
     def init_class(class_name, define_under, is_struct_wrapper = true)
       %{
-        struct RClass *#{class_name.downcase}_class = mrb_define_class_under(mrb, #{define_under}, \"#{class_name}\", mrb->object_class);#{
+          struct RClass *#{class_name.downcase}_class = mrb_define_class_under(mrb, #{define_under}, \"#{class_name}\", mrb->object_class);#{
       if is_struct_wrapper
         "\nMRB_SET_INSTANCE_TT(#{class_name.downcase}_class, MRB_TT_DATA);"
       end
-        }
+}
       }
     end
 
@@ -282,14 +317,16 @@ mrb_#{function_name}(mrb_state* mrb, mrb_value self) {
     end
 
     def datatype_to_arg_flag(datatype)
-      if treated_as_int.include? datatype
+      if Template.treated_as_int =~ datatype
         'i'
-      elsif treated_as_bool.include? datatype
+      elsif Template.treated_as_bool =~ datatype
         'b'
-      elsif treated_as_float.include? datatype
+      elsif Template.treated_as_float =~ datatype
         'f'
-      elsif treated_as_string.include? datatype
+      elsif Template.treated_as_string =~ datatype
         'z'
+      elsif Template.struct_types =~ datatype
+        'o'
       end
     end
 
@@ -334,6 +371,8 @@ mrb_#{function_name}(mrb_state* mrb, mrb_value self) {
         "mrb_str_new_cstr(mrb, #{variable})"
       elsif Template.treated_as_void =~ type
         'mrb_nil_value()'
+      elsif Template.struct_types =~ type
+        "mrb_obj_value(Data_Wrap_Struct(mrb, #{type.downcase}_mrb_class, &mrb_#{type}_struct, #{variable}))"
       end
     end
 
@@ -411,7 +450,7 @@ mrb_free(mrb, ptr);
   }
         }
       end
-}
+        }
       }
     end
 
