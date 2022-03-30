@@ -21,14 +21,25 @@ module Template # Template
       def format_type(param_datatype)
         if Template.treated_as_int =~ param_datatype
           'int'
+        elsif Template.treated_as_int_pointer =~ param_datatype
+          'int'
         elsif Template.treated_as_bool =~ param_datatype
+          'bool'
+        elsif Template.treated_as_bool_pointer =~ param_datatype
           'bool'
         elsif Template.treated_as_float =~ param_datatype
           'float'
+        elsif Template.treated_as_float_pointer =~ param_datatype
+          'float'
         elsif Template.treated_as_string =~ param_datatype
           'char *'
+          # Ignore for now
+        #elsif Template.treated_as_string_pointer =~ param_datatype
+        #  'char *'
         elsif Template.struct_types =~ param_datatype
           "#{param_datatype}"
+        elsif Template.struct_types_pointer =~ param_datatype
+          "#{param_datatype.gsub(/ *\*+$/,'')}"
         else
           nil # cannot be formated
         end
@@ -50,7 +61,7 @@ module Template # Template
           rpart = param.rpartition(' ')
           format = Template::C.format_type(rpart.first)
           if format
-            result += format + " #{'*' if Template.struct_types =~ rpart.first}#{Template::C.convention_parameter(rpart.last)};\n"
+            result += format + " #{'*' if Template.struct_types =~ rpart.first.gsub(/ *\*+$/,'')}#{Template::C.convention_parameter(rpart.last)};\n"
           elsif !func_name.nil?
             puts "// \"#{rpart.first}\" is not a parameter datatype that can be currently autobound. From function: \"#{func_name}\" and param: #{rpart.last}\n\n"
             #raise
@@ -62,10 +73,11 @@ module Template # Template
       def initialize_return_var(func_datatype, func_name)
         return '' if func_datatype == 'void'
         result = ''
-        if Template.struct_types =~ func_datatype
+        depointer_datatype = func_datatype.delete_suffix(' *')
+        if Template.struct_types =~ depointer_datatype
           result += Template.get_module('Test')
-          result += Template.get_class(func_datatype, 'Test')
-          result += "#{func_datatype} *#{Template::C.convention_return_variable(func_name)} = (#{func_datatype} *)mrb_malloc(mrb, sizeof(#{func_datatype}));\n"
+          result += Template.get_class(depointer_datatype, 'Test')
+          result += "#{depointer_datatype} *#{Template::C.convention_return_variable(func_name)} = (#{depointer_datatype} *)mrb_malloc(mrb, sizeof(#{depointer_datatype}));\n"
         else
           result += "#{func_datatype} #{Template::C.convention_return_variable(func_name)};\n"
         end
@@ -166,21 +178,38 @@ if (mrb_undef_p(kw_values[#{kwarg_iter}])) {
     def treated_as_int
       @treated_as_int ||= /^((un)?signed )?int$|^((un)?signed )?long$|^((un)?signed )?short$|^((un)?signed )char$/
     end
+    attr_writer :treated_as_int_pointer
+    def treated_as_int_pointer
+      @treated_as_int_pointer ||= /^((un)?signed )?int \*$|^((un)?signed )?long \*$|^((un)?signed )?short \*$|^((un)?signed )char \*$/
+    end
 
     attr_writer :treated_as_bool
     def treated_as_bool
       @treated_as_bool ||= /^bool$/
+    end
+    attr_writer :treated_as_bool_pointer
+    def treated_as_bool_pointer
+      @treated_as_bool_pointer ||= /^bool \*$/
     end
 
     attr_writer :treated_as_float
     def treated_as_float
       @treated_as_float ||= /^float$|^double$/
     end
+    attr_writer :treated_as_float_pointer
+    def treated_as_float_pointer
+      @treated_as_float_pointer ||= /^float \*$|^double \*$/
+    end
 
     attr_writer :treated_as_string
     def treated_as_string
       @treated_as_string ||= /^(const )?char \*$/
     end
+    # Ignore for now
+    #attr_writer :treated_as_string_pointer
+    #def treated_as_string_pointer
+    #  @treated_as_string_pointer ||= /^(const )?char \*\*$/
+    #end
 
     attr_writer :treated_as_void
     def treated_as_void
@@ -189,6 +218,9 @@ if (mrb_undef_p(kw_values[#{kwarg_iter}])) {
 
     def non_struct_types
       @non_struct_types ||= Regexp.union(treated_as_int, treated_as_bool, treated_as_float, treated_as_string, treated_as_void)
+    end
+    def non_struct_types_pointer
+      @non_struct_types_pointer ||= Regexp.union(treated_as_int_pointer, treated_as_bool_pointer, treated_as_float_pointer)#, treated_as_string_pointer)
     end
 
     attr_writer :struct_types
@@ -199,17 +231,35 @@ if (mrb_undef_p(kw_values[#{kwarg_iter}])) {
         raise "Struct types were not parsed\nRun 'parse_struct_types' first"
       end
     end
+    attr_writer :struct_types_pointer
+    def struct_types_pointer
+      if @struct_types_pointer
+        @struct_types_pointer
+      else
+        raise "Struct types were not parsed\nRun 'parse_struct_types' first"
+      end
+    end
 
     def parse_struct_types(structs)
       struct_types = structs.keys
+      struct_types_pointer = struct_types.map do |string|
+        "^#{string} \\*$"
+      end
       struct_types.map! do |string|
         "^#{string}$"
       end
+      @struct_types_pointer = /#{struct_types_pointer.join('|')}/
       @struct_types = /#{struct_types.join('|')}/
     end
 
     def valid_types
       @valid_types ||= Regexp.union(non_struct_types, struct_types)
+    end
+    def valid_types_pointer
+      @valid_types_pointer ||= Regexp.union(non_struct_types_pointer, struct_types_pointer)
+    end
+    def all_valid_types
+      @all_valid_types ||= Regexp.union(valid_types, valid_types_pointer)
     end
 
     def base(gem_name, init_body, final_body)
@@ -232,10 +282,15 @@ mrb_mruby_#{gem_name}_gem_final(mrb_state* mrb) {
       #  result += "return #{'*' if is_struct}#{Template::C.convention_return_variable(func_name)} = "
       #end
       result += "#{func_name}("
+      puts '//| --- |'
+      puts "//#{func_name}"
       unless params.first == 'void'
         params.each do |param|
           rpart = param.rpartition(' ')
-          result += "#{'*' if Template.struct_types =~ rpart.first}#{Template::C.convention_parameter(rpart.last)}, "
+          puts '//--'
+          puts "//#{rpart.first}"
+          puts "//#{Template.struct_types =~ rpart.first}"
+          result += "#{'*' if Template.struct_types =~ rpart.first}#{"(#{rpart.first})&" if Template.non_struct_types_pointer =~ rpart.first}#{Template::C.convention_parameter(rpart.last)}, "
         end
       end
       result.delete_suffix(', ') + ")"
@@ -244,9 +299,12 @@ mrb_mruby_#{gem_name}_gem_final(mrb_state* mrb) {
     def format_set_method_call(func_datatype, func_name, params, is_struct=false)
       result = format_method_call(func_datatype, func_name, params, is_struct) + ";\n"
       unless func_datatype == 'void'
+        if Template.struct_types_pointer =~ func_datatype
+          result = '*' + result
+        end
         result = "#{Template::C.convention_return_variable(func_name)} = #{result}"
         if is_struct
-          result = '*' + result
+            result = '*' + result
         end
       end
       result
@@ -367,12 +425,20 @@ mrb_#{function_name}(mrb_state* mrb, mrb_value self) {
         "mrb_float_value(mrb, #{variable})"
       elsif Template.treated_as_bool =~ type
         "mrb_bool_value(#{variable})"
+      elsif Template.treated_as_int_pointer =~ type
+        "mrb_fixnum_value(*#{variable})"
+      elsif Template.treated_as_float_pointer =~ type
+        "mrb_float_value(mrb, *#{variable})"
+      elsif Template.treated_as_bool_pointer =~ type
+        "mrb_bool_value(*#{variable})"
       elsif Template.treated_as_string =~ type
         "mrb_str_new_cstr(mrb, #{variable})"
       elsif Template.treated_as_void =~ type
         'mrb_nil_value()'
       elsif Template.struct_types =~ type
         "mrb_obj_value(Data_Wrap_Struct(mrb, #{type.downcase}_mrb_class, &mrb_#{type}_struct, #{variable}))"
+      elsif Template.struct_types_pointer =~ type
+        "mrb_obj_value(Data_Wrap_Struct(mrb, #{type.delete_suffix(' *').downcase}_mrb_class, &mrb_#{type.delete_suffix(' *')}_struct, #{variable}))"
       end
     end
 

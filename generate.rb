@@ -217,21 +217,28 @@ glue.first.each do |func, params|
 
   # TODO make a skip detector(what functions to skip bindings)
   skip = false
+  #puts "FUNCTION"
+  #puts "#{func.rpartition(' ').first}| + |#{func.rpartition(' ').last}"
   params.each do |param|
-    if param.chars.include? '*'
-      unless /char \*$/ =~ param.rpartition(' ').first
-        skip = true
-        break
-      end
+    #puts "#{param.rpartition(' ').first}| - |#{param.rpartition(' ').last}"
+    unless (Template.all_valid_types =~ param.rpartition(' ').first) || ("void" == param)
+      skip = true
+      break
     end
+    #if param.chars.include? '*'
+    #  unless /^char \*$/ =~ param.rpartition(' ').first
+    #    skip = true
+    #    break
+    #  end
+    #end
   end
   next if skip
-  next if ['SetTraceLogCallback', 'SetSaveFileTextCallback', 'SetSaveFileDataCallback', 'SetLoadFileTextCallback', 'SetLoadFileDataCallback', 'SetCameraMode', 'GetWorldToScreenEx', 'GetWorldToScreen', 'GetMouseRay', 'GetCameraMatrix', 'DrawBillboardRec', 'DrawBillboardPro', 'DrawBillboard'].include? func_name
+  #next if ['SetTraceLogCallback', 'SetSaveFileTextCallback', 'SetSaveFileDataCallback', 'SetLoadFileTextCallback', 'SetLoadFileDataCallback', 'SetCameraMode', 'GetWorldToScreenEx', 'GetWorldToScreen', 'GetMouseRay', 'GetCameraMatrix', 'DrawBillboardRec', 'DrawBillboardPro', 'DrawBillboard'].include? func_name
 
   # since void * can be anything just skip functions
   # (by default) that use it
   next if ['void *'].include? func_datatype
-  unless Template.valid_types =~ func_datatype
+  unless Template.all_valid_types =~ func_datatype
     puts "// \"#{func_datatype}\" is not a function return datatype that can be currently autobound. From function: \"#{func_name}\"\n\n"
     next
   end
@@ -248,7 +255,7 @@ glue.first.each do |func, params|
   body += Template::C.initialize_return_var(func_datatype, func_name)
   body += "\n" # formatting
 
-  body += Template.format_set_method_call(func_datatype, func_name, params, Template.struct_types =~ func_datatype)
+  body += Template.format_set_method_call(func_datatype, func_name, params, Template.struct_types =~ func_datatype.gsub(/ *\*+$/,''))
 
   body += Template.format_return(func_datatype, func_name)
 
@@ -365,13 +372,14 @@ $result += "\n"
 all_completed = $complete_phase1.keys | $complete_phase2.keys | $complete_phase3.keys | $complete_phase4.keys | $complete_phase5.keys
 all = $phase1.keys | $phase2.keys | $phase3.keys | $phase4.keys | $phase5.keys
 
-
+$result += "/* Unbound:\n"
 (all - all_completed).each do |unbound|
-  $result += "//#{unbound}\n"
+  $result += "#{unbound}\n"
 end
+$result += "*/\n"
 
 ($phase4.keys - $complete_phase4.keys).each do |ye|
-  puts ye
+  #puts ye
 end
 
 puts $result
