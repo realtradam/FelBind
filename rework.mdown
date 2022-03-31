@@ -1,0 +1,62 @@
+# Refactoring Document
+
+## Types of functions
+- C function wrap
+- getter
+- setter
+- initializer
+
+### C function wrap
+```
+static mrb_value
+mrb_#{function_name}(mrb_state* mrb, mrb_value self) {
+	
+	#{initialize vars}
+	
+	#{unwrap kwarg/arg}
+	
+	#{kwargs.each do assignment} <-- this will need to unwrap structs
+	^ also need to check if a default exists 
+	
+	#{call method}
+	
+	#{wrap return struct} <-- only if return is new struct
+	#{return}
+}
+```
+
+### Getter
+```
+mrb_#{struct_name}_get_#{var}(mrb_state* mrb, mrb_value self) {
+
+#{unwrap struct}
+
+#{return value} <-- may need to wrap value if its a struct
+}
+```
+
+### Setter
+```
+mrb_#{struct_name}_set_#{var}(mrb_state* mrb, mrb_value self) {
+#{initialize var}
+#{get arg}
+#{unwrap struct}
+#{set value}
+#{return the value from the struct}
+}
+```
+
+### Initializer
+```
+mrb_#{struct_name}_initialize(mrb_state* mrb, mrb_value self) {
+#{initialize var}
+#{unwrap kwarg/arg}
+
+#{kwargs.each do assignment} <-- this will need to unwrap structs
+^ also need to check if a default exists 
+
+#{initialize as mrb object}
+
+return self
+}
+```
