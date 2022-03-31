@@ -10,7 +10,7 @@ A binding assistant and generator for C/C++ to mruby(Under heavy WIP)
 
 ### How I plan for it to work:
 
-1. Run the scanner which will generate a glue.json file. This json file will contain all functions(and their params) as well as all structs(and their params)
+1. Run the scanner which will generate a func.json file. This json file will contain all functions(and their params) as well as all structs(and their params)
 2. Create a configuration file where you can reference specific functions and how you want their bindings to be generated differently
 	- for example, under what module or class a function should belong
 	- if a certain param should use self instead of passing in something
@@ -18,28 +18,37 @@ A binding assistant and generator for C/C++ to mruby(Under heavy WIP)
 	- insert bindings you made yourself
 3. Run the generator with the configuration file - this generates the resulting binding code
 
-#### Todo:
+### Opinionated Bindings
 
-- [X] parse C files for function and struct declarations
-- [X] plan for DSL for configuration file
-- [ ] create generator's default output
-	- [X] phase 1 - bind returnless, paramless functions
-	- [X] phase 2 - bind standard type return functions(e.g string or int), but still paramless
-		- bool
-		- int
-		- float
-		- double
-		- string
-	- [X] phase 3 - bind standard type return or params
-	- [X] phase 4 - bind struct construction(returning struct objects)
-		- [X] returning structs
-		- [X] accessors for values inside structs
-		- [X] bind struct initializer
-	- [ ] phase 5 - bind remaining struct related things
-		- [ ] struct as params of functions
-		- [ ] fix structs inside of structs
-			- [ ] for initilization
-			- [ ] for accessors
-- [ ] clean up code
-- [ ] have generator use config DSL file to customize bindings
-- [ ] do it all again for C++
+The defaults of FelBind make some assumptions on how you would like the resulting interface to look like.
+
+- Functions get bound to methods using snake_case and kwargs
+	- `SomeFunction(someValue)` => `some_function(some_value: thing)`
+- Functions are defined under a module(by default `Test`)
+	- `Test.some_function`
+- Structs are defined as classes under a module(by default `Test`)
+	- `Test::MyStruct`
+- Functions beginning with `Set` get bound as a method with `=`
+	- `SetSomeFunction(value)` => `some_function = value`
+- Functions beginning with `Get` get bound as a method without it
+	- `GetSomeFunction()` => `some_function`
+
+### What Currently Works:
+
+- Wrapping functions that return or have parameters that are of the basic C types(int, float, char *, etc) or their pointers(int *, float *, etc[except char *])
+- Wrapping function that return or have parameters that are structs or their pointers
+- Wrapping structs
+- Giving struct objects initializers and accessers
+
+### What Doesn't Work:
+
+- Binding C functions that begin with `Set` are bound incorrectly
+- Making accessors for structs that contain structs
+- kwargs should follow snake_case naming conventions
+- The config system
+
+### What isnt currently planned to make work:
+
+- Functions that utilize the `* void` type
+- Nested Pointers
+- Functions with variable arguments

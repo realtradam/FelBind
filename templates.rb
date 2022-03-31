@@ -358,17 +358,18 @@ mrb_#{function_name}(mrb_state* mrb, mrb_value self) {
     end
 
     def get_args(req_arg_hash, opt_arg_hash=nil)
-      raise if opt_arg_hash
+      raise 'opt_arg_hash feature not implemented yet' if opt_arg_hash
       result = ''
       tail = ''
       flags = ''
       req_arg_hash.each do |var_name, var_datatype|
-        if var_datatype != 'unsigned char'
-          result += "#{var_datatype} #{var_name};\n"
-        else
-          result += "mrb_int #{var_name};\n"
+        #if var_datatype != 'unsigned char'
+        if Template.non_struct_types =~ var_datatype
+          result += "#{Template::C.format_type(var_datatype)} #{Template::C.convention_parameter(var_name)};\n"
+        #else
+        #  result += "mrb_int #{var_name};\n"
         end
-        tail += ", &#{var_name}"
+        tail += ", &#{Template::C.convention_parameter(var_name)}"
         flags += datatype_to_arg_flag(var_datatype)
       end
       result += "mrb_get_args(mrb, \"#{flags}\"#{tail});\n"

@@ -127,41 +127,41 @@ glue.last.each do |struct, params|
   $defines += Template.init_struct_wrapper(struct)
   $init_body += Template.init_class(struct, LibraryName.downcase)
 
-  #init_vars = ''
+  init_vars = ''
 
-  #params.each do |param|
-  #  $all_params.push param
-  #  rpart = param.rpartition(' ')
-  #  param_datatype = rpart.first
-  #  param_name = rpart.last
+  params.each do |param|
+    $all_params.push param
+    rpart = param.rpartition(' ')
+    param_datatype = rpart.first
+    param_name = rpart.last
 
-  #  next unless Tplt.non_struct_types.include? param_datatype
-  #  $bound_params.push param
+    next unless Template.non_struct_types =~ param_datatype
+    $bound_params.push param
 
-  #  # getter
-  #  # take no params
-  #  # unwrap struct
-  #  # return(using correct type conversion)
-  #  body = Tplt.unwrap_struct("#{struct} *struct_#{struct.downcase}", 'self', "mrb_#{struct}_struct", struct)
-  #  body += "return #{Tplt.to_mrb(param_datatype, "struct_#{struct.downcase}->#{param_name}")};\n"
-  #  $defines += Tplt.function("#{struct}_get_#{param_name}", body)
-  #  $init_body += Tplt.init_function("#{struct.downcase}_class", param_name, "#{struct}_get_#{param_name}", "MRB_ARGS_NONE()")
+    # getter
+    # take no params
+    # unwrap struct
+    # return(using correct type conversion)
+    body = Template.unwrap_struct("#{struct} *struct_#{struct.downcase}", 'self', "mrb_#{struct}_struct", struct)
+    body += "return #{Template.to_mrb(param_datatype, "struct_#{struct.downcase}->#{param_name}")};\n"
+    $defines += Template.function("#{struct}_get_#{param_name}", body)
+    $init_body += Template.init_function("#{struct.downcase}_class", param_name, "#{struct}_get_#{param_name}", "MRB_ARGS_NONE()")
 
-  #  # setter
-  #  # init var of correct type
-  #  # take 1 arg param
-  #  # unwrap struct
-  #  # set value in struct
-  #  # return same value
-  #  body = Tplt.get_args({ "#{param_name}": "#{param_datatype}" })
-  #  body += Tplt.unwrap_struct("#{struct} *struct_#{struct.downcase}", 'self', "mrb_#{struct}_struct", struct)
-  #  body += "struct_#{struct.downcase}->#{param_name} = #{param_name};\n"
-  #  body += "return #{Tplt.to_mrb(param_datatype, param_name)};\n"
-  #  $defines += Tplt.function("#{struct}_set_#{param_name}", body)
-  #  $init_body += Tplt.init_function("#{struct.downcase}_class", "#{param_name}=", "#{struct}_set_#{param_name}", "MRB_ARGS_REQ(1)")
+    # setter
+    # init var of correct type
+    # take 1 arg param
+    # unwrap struct
+    # set value in struct
+    # return same value
+    body = Template.get_args({ "#{param_name}": "#{param_datatype}" })
+    body += Template.unwrap_struct("#{struct} *struct_#{struct.downcase}", 'self', "mrb_#{struct}_struct", struct)
+    body += "struct_#{struct.downcase}->#{param_name} = #{Template::C.convention_parameter(param_name)};\n"
+    body += "return #{Template.to_mrb(param_datatype, Template::C.convention_parameter(param_name))};\n"
+    $defines += Template.function("#{struct}_set_#{param_name}", body)
+    $init_body += Template.init_function("#{struct.downcase}_class", "#{param_name}=", "#{struct}_set_#{param_name}", "MRB_ARGS_REQ(1)")
 
 
-  #end
+  end
 
   ## initializer
   # init the struct(using mrb to allocate)
@@ -169,42 +169,43 @@ glue.last.each do |struct, params|
   # assign values to struct
   # wrap struct
   # return self
-  #body = ''
-  #body += Tplt.get_module(LibraryName)
-  #body += Tplt.get_class(struct, LibraryName.downcase)
-  #body += "#{struct} *wrapped_value = (#{struct} *)mrb_malloc(mrb, sizeof(#{struct}));\n"
-  ##body += "*wrapped_value = {0};\n" #{func_name}("
+  body = ''
+  body += Template.get_module(LibraryName)
+  body += Template.get_class(struct, LibraryName.downcase)
+  body += "#{struct} *wrapped_value = (#{struct} *)mrb_malloc(mrb, sizeof(#{struct}));\n"
+  #body += "*wrapped_value = {0};\n" #{func_name}("
 
-  #init_array_body = ''
-  #unwrapped_kwargs = ''
-  #params.each_with_index do |param, index|
-  #  temp = param
-  #  temp_rpart = temp.rpartition(' ')
-  #  #if temp_rpart.first == 'const char *'
-  #  #  temp = 'char *' + temp_rpart.last
-  #  #end
-  #  #init_var_body += temp + ";\n"
-  #  init_array_body += "mrb_intern_lit(mrb, \"#{temp_rpart.last}\"),\n"
-  #  #unwrapped_kwargs += Tplt.unwrap_kwarg(index, "#{temp_rpart.last} = #{Tplt.to_c(temp_rpart.first, "kw_values[#{index}]")};", nil, "#{temp_rpart.last} Argument Missing")
-  #  if Tplt.non_struct_types.include? temp_rpart.first
-  #    unwrapped_kwargs += Tplt.unwrap_kwarg(index, "wrapped_value->#{temp_rpart.last} = #{Tplt.to_c(temp_rpart.first, "kw_values[#{index}]")};\n")
-  #  else
-  #    # this is for structs or "undetermined" types
-  #    # doesnt work yet
-  #    next
-  #    #unwrapped_kwargs += Tplt.unwrap_kwarg(index, "wrapped_value->#{temp_rpart.last} = (#{temp_rpart.first})kw_values[#{index}];\n")
-  #  end
-  #end
-  #body += Tplt.get_kwargs(params.length, '', init_array_body)
-  #body += unwrapped_kwargs
+  init_array_body = ''
+  unwrapped_kwargs = ''
+  params.each_with_index do |param, index|
+    temp = param
+    temp_rpart = temp.rpartition(' ')
+    #if temp_rpart.first == 'const char *'
+    #  temp = 'char *' + temp_rpart.last
+    #end
+    #init_var_body += temp + ";\n"
+    init_array_body += "mrb_intern_lit(mrb, \"#{temp_rpart.last}\"),\n"
+    #unwrapped_kwargs += Tplt.unwrap_kwarg(index, "#{temp_rpart.last} = #{Tplt.to_c(temp_rpart.first, "kw_values[#{index}]")};", nil, "#{temp_rpart.last} Argument Missing")
+    if Template.non_struct_types =~ temp_rpart.first
+      unwrapped_kwargs += Template::C.unwrap_kwarg(index, "wrapped_value->#{temp_rpart.last} = #{Template.to_c(temp_rpart.first, "kw_values[#{index}]")};\n")
+    else
+      # this is for structs or "undetermined" types
+      # doesnt work yet
+      next
+      #unwrapped_kwargs += Tplt.unwrap_kwarg(index, "wrapped_value->#{temp_rpart.last} = (#{temp_rpart.first})kw_values[#{index}];\n")
+    end
+  end
+  body += Template::C.get_kwargs(params)#params.length, '', init_array_body)
+  body += unwrapped_kwargs
 
-  #body += "mrb_data_init(self, wrapped_value, &mrb_#{struct}_struct);\n"
-  #body += 'return self;'
-  #$defines += Tplt.function("#{struct}_initialize", body)
-  #$init_body += Tplt.init_function("#{struct.downcase}_class", "initialize", "#{struct}_initialize", "MRB_ARGS_OPT(1)")
+  body += "mrb_data_init(self, wrapped_value, &mrb_#{struct}_struct);\n"
+  body += 'return self;'
+  $defines += Template.function("#{struct}_initialize", body)
+  $init_body += Template.init_function("#{struct.downcase}_class", "initialize", "#{struct}_initialize", "MRB_ARGS_OPT(1)")
 
 
 end
+
 # generates functions
 glue.first.each do |func, params|
   # func = function name with return type
