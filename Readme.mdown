@@ -35,7 +35,7 @@ The defaults of FelBind make some assumptions on how you would like the resultin
 
 ### What Currently Works:
 
-- Wrapping functions that return or have parameters that are of the basic C types(int, float, char *, etc) or their pointers(int *, float *, etc[except char *])
+- Wrapping functions that return or have parameters that are of the basic C types(int, float, char \*, etc) or their pointers(int \*, float \*, etc[except char *])
 - Wrapping function that return or have parameters that are structs or their pointers
 - Wrapping structs
 - Giving struct objects initializers and accessers
@@ -46,6 +46,7 @@ The defaults of FelBind make some assumptions on how you would like the resultin
 - Making accessors for structs that contain structs
 - kwargs should follow snake_case naming conventions
 - The config system
+- Struct Aliases(might make this manually done)
 
 ### What isnt currently planned to make work:
 
