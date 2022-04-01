@@ -126,7 +126,6 @@ $bound_params = []
 glue.last.each do |struct, params|
   $defines += Template.init_struct_wrapper(struct)
   $init_body += Template.init_class(struct, LibraryName.downcase)
-
   init_vars = ''
 
   params.each do |param|
@@ -145,7 +144,7 @@ glue.last.each do |struct, params|
     body = Template.unwrap_struct("#{struct} *struct_#{struct.downcase}", 'self', "mrb_#{struct}_struct", struct)
     body += "return #{Template.to_mrb(param_datatype, "struct_#{struct.downcase}->#{param_name}")};\n"
     $defines += Template.function("#{struct}_get_#{param_name}", body)
-    $init_body += Template.init_function("#{struct.downcase}_class", param_name, "#{struct}_get_#{param_name}", "MRB_ARGS_NONE()")
+    $init_body += Template.init_function("#{struct.downcase}_class", Template::MRuby.rubify_func_name(param_name), "#{struct}_get_#{param_name}", "MRB_ARGS_NONE()")
 
     # setter
     # init var of correct type
@@ -153,12 +152,14 @@ glue.last.each do |struct, params|
     # unwrap struct
     # set value in struct
     # return same value
-    body = Template.get_args({ "#{param_name}": "#{param_datatype}" })
+    body = ''
+    body += Template::C.initialize_variables_for_kwargs([param], glue.last, "Struct: #{struct}")
+    body += Template.get_args({ "#{param_name}": "#{param_datatype}" })
     body += Template.unwrap_struct("#{struct} *struct_#{struct.downcase}", 'self', "mrb_#{struct}_struct", struct)
     body += "struct_#{struct.downcase}->#{param_name} = #{Template::C.convention_parameter(param_name)};\n"
     body += "return #{Template.to_mrb(param_datatype, Template::C.convention_parameter(param_name))};\n"
     $defines += Template.function("#{struct}_set_#{param_name}", body)
-    $init_body += Template.init_function("#{struct.downcase}_class", "#{param_name}=", "#{struct}_set_#{param_name}", "MRB_ARGS_REQ(1)")
+    $init_body += Template.init_function("#{struct.downcase}_class", "#{Template::MRuby.rubify_func_name(param_name)}=", "#{struct}_set_#{param_name}", "MRB_ARGS_REQ(1)")
 
 
   end
@@ -203,7 +204,6 @@ glue.last.each do |struct, params|
   $defines += Template.function("#{struct}_initialize", body)
   $init_body += Template.init_function("#{struct.downcase}_class", "initialize", "#{struct}_initialize", "MRB_ARGS_OPT(1)")
 
-
 end
 
 # generates functions
@@ -246,12 +246,21 @@ glue.first.each do |func, params|
 
   body = ''
 
-  body += Template::C.initialize_variables(params, glue.last, func_name)
+  # use kwargs
+  if params.count > 1
+    body += Template::C.initialize_variables_for_kwargs(params, glue.last, func_name)
 
-  body += Template::C.get_kwargs(params)
+    body += Template::C.get_kwargs(params)
 
-  body += Template::C.parse_kwargs(params)
-  body += "\n" # formatting
+    body += Template::C.parse_kwargs(params)
+    body += "\n" # formatting
+    # use args
+  elsif params.first != 'void'
+    body += Template::C.initialize_variables_for_args(params, glue.last, func_name)
+    param_rpart = params.first.rpartition(' ')
+    body += Template.get_args({ "#{param_rpart.last}": "#{param_rpart.first}" })
+    body += Template::C.parse_args(params)
+  end
 
   body += Template::C.initialize_return_var(func_datatype, func_name)
   body += "\n" # formatting
@@ -262,7 +271,7 @@ glue.first.each do |func, params|
 
   $defines += "\n//#{func}"
   $defines += Template.function(func_name, body)
-  $init_body += Template.init_module_function(LibraryName.downcase, Template::MRuby.rubify_func_name(func_name), func_name, "MRB_ARGS_OPT(1)")
+  $init_body += Template.init_module_function(LibraryName.downcase, Template::MRuby.rubify_func_name(func_name, params), func_name, "MRB_ARGS_OPT(1)")
 
   debug_mark_binding(func, params)
   #puts body
@@ -356,15 +365,6 @@ $result = %{
 #{Template.base(LibraryName.downcase, $init_body, nil)}
 }
 
-$result += "//Bound Functions: #{$complete_phase1.length + $complete_phase2.length + $complete_phase3.length + $complete_phase4.length + $complete_phase5.length} / #{$phase1.length + $phase2.length + $phase3.length + $phase4.length + $phase5.length}\n//---\n"
-
-$result += "//Phase 1 Functions: #{$complete_phase1.length} / #{$phase1.length}\n"
-$result += "//Phase 2 Functions: #{$complete_phase2.length} / #{$phase2.length}\n"
-$result += "//Phase 3 Functions: #{$complete_phase3.length} / #{$phase3.length}\n"
-$result += "//Phase 4 Functions: #{$complete_phase4.length} / #{$phase4.length}\n"
-$result += "//Phase 5 Functions: #{$complete_phase5.length} / #{$phase5.length}\n"
-$result += "\n"
-#$result += "//Struct Accessors: #{$bound_params.length} / #{$all_params.length}\n"
 
 #pp ($phase3.keys - $complete_phase3.keys)
 #puts
@@ -379,14 +379,16 @@ $result += "/* Unbound:\n"
 end
 $result += "*/\n"
 
-($phase4.keys - $complete_phase4.keys).each do |ye|
-  #puts ye
-end
+$result += "//Bound Functions: #{$complete_phase1.length + $complete_phase2.length + $complete_phase3.length + $complete_phase4.length + $complete_phase5.length} / #{$phase1.length + $phase2.length + $phase3.length + $phase4.length + $phase5.length}\n//---\n"
+$result += "//Struct Accessors: #{$bound_params.length} / #{$all_params.length}\n//---\n"
+
+$result += "\n"
 
 puts $result
 
-#$phase4.reverse_each do |key, elem|
-#  puts '---'
-#  puts key
-#  pp elem
-#end
+puts '/*'
+pp $all_params - $bound_params
+puts
+pp $bound_params
+puts '*/'
+

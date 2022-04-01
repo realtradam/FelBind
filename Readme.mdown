@@ -4,7 +4,7 @@
 [![Ko-Fi](https://img.shields.io/static/v1?message=Buy%20me%20a%20coffee&logo=kofi&labelColor=ff5e5b&color=434B57&logoColor=white&label=%20)](https://ko-fi.com/tradam)
 
 
-A binding assistant and generator for C/C++ to mruby(Under heavy WIP)
+A binding assistant and generator for C(and maybe C++ later?) to mruby [Under heavy WIP]
 
 ---
 
@@ -28,8 +28,11 @@ The defaults of FelBind make some assumptions on how you would like the resultin
 	- `Test.some_function`
 - Structs are defined as classes under a module(by default `Test`)
 	- `Test::MyStruct`
+- Struct values are read or written to by using the snake_case version of their respective members
+	- `my_struct_object.value_example`
+	- `my_struct_object.value_example = 5`
 - Functions beginning with `Set` get bound as a method with `=`
-	- `SetSomeFunction(value)` => `some_function = value`
+	- `SetSomeFunction(value)` => `Test.some_function = value`
 - Functions beginning with `Get` get bound as a method without it
 	- `GetSomeFunction()` => `some_function`
 
@@ -37,16 +40,15 @@ The defaults of FelBind make some assumptions on how you would like the resultin
 
 - Wrapping functions that return or have parameters that are of the basic C types(int, float, char \*, etc) or their pointers(int \*, float \*, etc[except char *])
 - Wrapping function that return or have parameters that are structs or their pointers
-- Wrapping structs
+- Wrapping structs into objects
 - Giving struct objects initializers and accessers
 
 ### What Doesn't Work:
 
-- Binding C functions that begin with `Set` are bound incorrectly
-- Making accessors for structs that contain structs
-- kwargs should follow snake_case naming conventions
+- Binding accessors for structs that contain structs or pointers
+- Cloning struct objects
 - The config system
-- Struct Aliases(might make this manually done)
+- Struct Aliases(might make this manually done in the config system)
 
 ### What isnt currently planned to make work:
 
