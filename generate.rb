@@ -130,9 +130,7 @@ glue.last.each do |struct, params|
 
   params.each do |param|
     $all_params.push param
-    rpart = param.rpartition(' ')
-    param_datatype = rpart.first
-    param_name = rpart.last
+    param_datatype, _space, param_name = param.rpartition(' ')
 
     next unless Template.non_struct_types =~ param_datatype
     $bound_params.push param
@@ -142,7 +140,12 @@ glue.last.each do |struct, params|
     # unwrap struct
     # return(using correct type conversion)
     body = Template.unwrap_struct("#{struct} *struct_#{struct.downcase}", 'self', "mrb_#{struct}_struct", struct)
+
+    # if non struct
     body += "return #{Template.to_mrb(param_datatype, "struct_#{struct.downcase}->#{param_name}")};\n"
+    # elsif struct
+
+    # end
     $defines += Template.function("#{struct}_get_#{param_name}", body)
     $init_body += Template.init_function("#{struct.downcase}_class", Template::MRuby.rubify_func_name(param_name), "#{struct}_get_#{param_name}", "MRB_ARGS_NONE()")
 
@@ -153,9 +156,12 @@ glue.last.each do |struct, params|
     # set value in struct
     # return same value
     body = ''
-    body += Template::C.initialize_variables_for_kwargs([param], glue.last, "Struct: #{struct}")
+    body += Template::C.initialize_variables_for_args([param], glue.last, "Struct: #{struct}")
     body += Template.get_args({ "#{param_name}": "#{param_datatype}" })
+    body += Template::C.parse_args(params)
     body += Template.unwrap_struct("#{struct} *struct_#{struct.downcase}", 'self', "mrb_#{struct}_struct", struct)
+    # handle differently depending on if pointer or not
+    body += "struct_#{struct.downcase}->#{param_name} = #{Template::C.convention_parameter(param_name)};\n"
     body += "struct_#{struct.downcase}->#{param_name} = #{Template::C.convention_parameter(param_name)};\n"
     body += "return #{Template.to_mrb(param_datatype, Template::C.convention_parameter(param_name))};\n"
     $defines += Template.function("#{struct}_set_#{param_name}", body)
@@ -234,11 +240,10 @@ glue.first.each do |func, params|
     #end
   end
   next if skip
-  #next if ['SetTraceLogCallback', 'SetSaveFileTextCallback', 'SetSaveFileDataCallback', 'SetLoadFileTextCallback', 'SetLoadFileDataCallback', 'SetCameraMode', 'GetWorldToScreenEx', 'GetWorldToScreen', 'GetMouseRay', 'GetCameraMatrix', 'DrawBillboardRec', 'DrawBillboardPro', 'DrawBillboard'].include? func_name
-
   # since void * can be anything just skip functions
   # (by default) that use it
   next if ['void *'].include? func_datatype
+
   unless Template.all_valid_types =~ func_datatype
     puts "// \"#{func_datatype}\" is not a function return datatype that can be currently autobound. From function: \"#{func_name}\"\n\n"
     next
