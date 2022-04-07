@@ -7,3 +7,5 @@ output/*
 glue.json
 temp
 temp.c
+build
+build/*
