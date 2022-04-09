@@ -149,7 +149,7 @@ module Template # Template
         init_array_body = ''
         params.each do |param|
           rpart = param.rpartition(' ')
-          init_array_body += "mrb_intern_lit(mrb, \"#{rpart.last}\"),\n"
+          init_array_body += "mrb_intern_lit(mrb, \"#{rpart.last.underscore}\"),\n"
         end
         init_array_body.delete_suffix!(",\n")
         %{uint32_t kw_num = #{params.length};
@@ -172,10 +172,10 @@ mrb_get_args(mrb, "|:", &kwargs);
 
             unwrap = Template.unwrap_struct(Template::C.convention_parameter(var_name), "kw_values[#{index - skipped}]", "mrb_#{datatype.delete_suffix(' *')}_struct", datatype.delete_suffix(' *'))
 
-            result += Template::C.unwrap_kwarg(index - skipped,unwrap)
+            result += Template::C.unwrap_kwarg(index - skipped,unwrap, nil, "Missing kwarg: #{var_name.underscore}")
           elsif Template.non_struct_types_all =~ datatype
             unwrap = "#{Template::C.convention_parameter(var_name)} = #{Template.to_c(datatype, "kw_values[#{index - skipped}]")};"
-            result += Template::C.unwrap_kwarg(index - skipped, unwrap)
+            result += Template::C.unwrap_kwarg(index - skipped, unwrap, nil, "#{var_name.underscore}")
           else
             skipped += 1
             next

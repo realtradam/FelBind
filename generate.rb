@@ -134,19 +134,40 @@ class Generate
 
         params.each do |param|
           $all_params.push param
-          rpart = param.rpartition(' ')
-          param_datatype = rpart.first
-          param_name = rpart.last
+          param_datatype, _space, param_name = param.rpartition(' ')
 
-          next unless Template.non_struct_types =~ param_datatype
-          $bound_params.push param
+          #next unless Template.non_struct_types =~ param_datatype
 
           # getter
           # take no params
           # unwrap struct
           # return(using correct type conversion)
           body = Template.unwrap_struct("#{struct} *struct_#{struct.downcase}", 'self', "mrb_#{struct}_struct", struct)
-          body += "return #{Template.to_mrb(param_datatype, "struct_#{struct.downcase}->#{param_name}")};\n"
+
+          # if non struct
+          if Template.non_struct_types_all =~ param_datatype
+            $bound_params.push param
+            if Template.non_struct_types =~ param_datatype
+              body += "return #{Template.to_mrb(param_datatype, "struct_#{struct.downcase}->#{param_name}")};\n"
+            else # pointer
+              body += "return #{Template.to_mrb(param_datatype, "struct_#{struct.downcase}->#{param_name}")};\n"
+            end
+            # elseif struct TODO
+          elsif Template.struct_types_all =~ param_datatype
+            if Template.struct_types =~ param_datatype
+              next # TODO
+              Template.wrap_struct(var_name, target, mrb_type, type)
+            else # pointer
+              next # TODO
+            end
+            # init var
+            # unwrap struct
+            # initialize struct as ruby object
+            # set to var
+            # end
+          else
+            next
+          end
           $defines += Template.function("#{struct}_get_#{param_name}", body)
           $init_body += Template.init_function("#{struct.downcase}_class", Template::MRuby.rubify_func_name(param_name), "#{struct}_get_#{param_name}", "MRB_ARGS_NONE()")
 
@@ -157,11 +178,30 @@ class Generate
           # set value in struct
           # return same value
           body = ''
+          # TODO check this and why it is kwargs?
           body += Template::C.initialize_variables_for_kwargs([param], glue.last, "Struct: #{struct}")
           body += Template.get_args({ "#{param_name}": "#{param_datatype}" })
           body += Template.unwrap_struct("#{struct} *struct_#{struct.downcase}", 'self', "mrb_#{struct}_struct", struct)
-          body += "struct_#{struct.downcase}->#{param_name} = #{Template::C.convention_parameter(param_name)};\n"
-          body += "return #{Template.to_mrb(param_datatype, Template::C.convention_parameter(param_name))};\n"
+
+          if Template.non_struct_types_all =~ param_datatype
+            # if its a pointer
+            if Template.non_struct_types_pointer =~ param_datatype
+              body += "*struct_#{struct.downcase}->#{param_name} = #{Template::C.convention_parameter(param_name)};\n"
+              body += "return #{Template.to_mrb(param_datatype.delete_suffix(' *'), Template::C.convention_parameter(param_name))};\n"
+            else
+              body += "struct_#{struct.downcase}->#{param_name} = #{Template::C.convention_parameter(param_name)};\n"
+              body += "return #{Template.to_mrb(param_datatype, Template::C.convention_parameter(param_name))};\n"
+            end
+          elsif Template.struct_types_all =~ param_datatype
+            next
+            if Template.struct_types_pointer =~ param_datatype
+              #TODO
+            else
+              #TODO
+            end
+          end
+
+
           $defines += Template.function("#{struct}_set_#{param_name}", body)
           $init_body += Template.init_function("#{struct.downcase}_class", "#{Template::MRuby.rubify_func_name(param_name)}=", "#{struct}_set_#{param_name}", "MRB_ARGS_REQ(1)")
 
@@ -192,7 +232,7 @@ class Generate
           init_array_body += "mrb_intern_lit(mrb, \"#{temp_rpart.last}\"),\n"
           #unwrapped_kwargs += Tplt.unwrap_kwarg(index, "#{temp_rpart.last} = #{Tplt.to_c(temp_rpart.first, "kw_values[#{index}]")};", nil, "#{temp_rpart.last} Argument Missing")
           if Template.non_struct_types =~ temp_rpart.first
-            unwrapped_kwargs += Template::C.unwrap_kwarg(index, "wrapped_value->#{temp_rpart.last} = #{Template.to_c(temp_rpart.first, "kw_values[#{index}]")};\n")
+            unwrapped_kwargs += Template::C.unwrap_kwarg(index, "wrapped_value->#{temp_rpart.last} = #{Template.to_c(temp_rpart.first, "kw_values[#{index}]")};\n", nil, "Missing kwarg: #{temp_rpart.last.underscore}")
           else
             # this is for structs or "undetermined" types
             # doesnt work yet
@@ -391,8 +431,10 @@ raise 'end of testing'
       puts $result
 
       puts '/*'
+      puts "UNBOUND:"
       pp $all_params - $bound_params
       puts
+      puts "BOUND:"
       pp $bound_params
       puts '*/'
 
