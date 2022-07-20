@@ -1,0 +1,34 @@
+# DSL
+
+Special DSL for configuring the resulting bindings. Allows you to change the name, change what class or module something belongs to, and change what it is named, or disable something from being bound at all.
+
+```ruby
+// setters
+fn[:MyCFunction].rename :my_new_method_name
+fn[:MyCFunction].klass :MyRubyClass // make this function belong to a ruby class
+fn[:MyCFunction].param_as_self :c_var // have the function use self instead of asking for that parameter
+fn[:MyCFunction].skip
+// getters
+fn{:MyCFunction].name
+fn{:MyCFunction].klass
+fn{:MyCFunction].param_as_self
+fn[:MyCFunction].skip?
+
+// setters
+struct[:MyCStruct].rename :MyRubyClass
+struct[:MyCStruct].klass :MyRubyClassTwo //make this struct class belong under another
+struct[:MyCStruct].skip
+struct[:MyCStruct].add_alias :MyCTypeDef //TODO: figure this out better
+// getters
+struct{:MyCStruct].name
+struct{:MyCStruct].klass
+struct{:MyCStruct].param_as_self
+struct[:MyCStruct].aliases
+
+config.define_method_naming_pattern do |c_function|
+	// your logic
+end
+config.define_class_naming_pattern do |c_struct|
+	// your logic
+end
+```

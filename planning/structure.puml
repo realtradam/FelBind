@@ -1,0 +1,100 @@
+@startuml
+
+state "General Process" as General_Process {
+	state Code
+	state JSON
+	state Gem {
+		state Headers
+		state Structs {
+			state Struct_Type_Init
+			state Struct_Accessors
+			state Struct_Func_Init
+		}
+		state Methods
+		state Gem_Initializer {
+			state Define_Module
+			state Define_Struct_Classes
+			state Define_Struct_Methods
+			state Define_Functions
+		}
+		state Gem_Finalizer
+
+		Code -r-> JSON
+		JSON -d-> Gem
+		
+		Headers -d-> Structs
+		Structs -d-> Methods
+		Methods -d-> Gem_Initializer
+		Gem_Initializer -d-> Gem_Finalizer
+		
+		Define_Module -d-> Define_Struct_Classes
+		Define_Struct_Classes -r-> Define_Struct_Methods
+		Define_Struct_Classes -d-> Define_Functions
+	}
+}
+state "Method" as C_Function {
+	state "Initialize Vars" as Initialize_Vars_C_Function
+	state fork_kw_args_c_function <<fork>>
+	state "Get Single Arg" as Get_Arg_C_Function
+	state "Get Kwargs" as Get_Kwargs_C_Function
+	state "Assign Arg" as Assign_Arg_C_Function
+	state "Assign Kwargs" as Assign_Kwargs_C_Function
+	state "Call Function" as Call_C_Function
+	state fork_wrap_struct_c_function <<fork>>
+	state "Wrap Struct" as Wrap_Struct_C_Function
+	state "Return Value" as Return_C_Function
+
+	[*] -d-> Initialize_Vars_C_Function
+	[*] -d-> Call_C_Function
+
+	Initialize_Vars_C_Function -d-> fork_kw_args_c_function
+	
+	fork_kw_args_c_function -d-> Get_Arg_C_Function
+	Get_Arg_C_Function -d-> Assign_Arg_C_Function
+	
+	fork_kw_args_c_function -d-> Get_Kwargs_C_Function
+	Get_Kwargs_C_Function -d-> Assign_Kwargs_C_Function
+	
+	Assign_Arg_C_Function -d-> Call_C_Function
+	Assign_Kwargs_C_Function -d-> Call_C_Function
+	
+	Call_C_Function -d-> fork_wrap_struct_c_function
+	fork_wrap_struct_c_function -d-> Wrap_Struct_C_Function
+	
+	fork_wrap_struct_c_function -d-> Return_C_Function
+	Wrap_Struct_C_Function -d-> Return_C_Function
+}
+
+state "Struct Getter Method" as Struct_Getter {
+	state fork_is_struct_getter <<fork>>
+	state "Unwrap Struct\nand Read Value" as Unwrap_Struct_Getter
+	state "Return Value" as Return_Struct_Getter
+	state "Handle If Value\nIs Struct" as Handle_Struct_Value_Getter
+
+	[*] -d-> Unwrap_Struct_Getter
+	Unwrap_Struct_Getter -d-> fork_is_struct_getter
+	fork_is_struct_getter -d-> Return_Struct_Getter
+	fork_is_struct_getter -d-> Handle_Struct_Value_Getter
+	Handle_Struct_Value_Getter -d-> Return_Struct_Getter
+
+}
+
+state "Struct Setter Method" as Struct_Setter {
+	state "Initialize Vars" as Initialize_Vars_Setter
+	state "Get Arg" as Get_Arg_Setter
+	state "Unwrap And Set" as Unwrap_Struct_Setter
+	state "Return Var" as Return_Setter
+
+	[*] -d-> Initialize_Vars_Setter
+	Initialize_Vars_Setter -d-> Get_Arg_Setter
+	Get_Arg_Setter -d-> Unwrap_Struct_Setter
+	Unwrap_Struct_Setter -d-> Return_Setter
+}
+
+state Struct_Initializer {
+	state Initialize_Vars_Init
+}
+
+	
+
+@enduml
