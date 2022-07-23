@@ -92,7 +92,32 @@ state "Struct Setter Method" as Struct_Setter {
 }
 
 state Struct_Initializer {
-	state Initialize_Vars_Init
+	state "Initialize Vars" as Initialize_Vars_Struct_Init
+	state fork_kw_args_struct_init <<fork>>
+	state "Get Single Arg" as Get_Arg_Struct_Init
+	state "Get Kwargs" as Get_Kwargs_Struct_Init
+	state "Assign Arg" as Assign_Arg_Struct_Init
+	state "Assign Kwargs" as Assign_Kwargs_Struct_Init
+	state "Build Struct" as Build_Struct_Struct_Init
+	state "Wrap Struct" as Wrap_Struct_Struct_Init
+	state "Return Ruby Object" as Return_Struct_Init
+
+	[*] -d-> Initialize_Vars_Struct_Init
+
+	Initialize_Vars_Struct_Init -d-> fork_kw_args_struct_init
+	
+	fork_kw_args_struct_init -d-> Get_Arg_Struct_Init
+	Get_Arg_Struct_Init -d-> Assign_Arg_Struct_Init
+	
+	fork_kw_args_struct_init -d-> Get_Kwargs_Struct_Init
+	Get_Kwargs_Struct_Init -d-> Assign_Kwargs_Struct_Init
+	
+	Assign_Arg_Struct_Init -d-> Build_Struct_Struct_Init
+	Assign_Kwargs_Struct_Init -d-> Build_Struct_Struct_Init
+	
+	Build_Struct_Struct_Init -d-> Wrap_Struct_Struct_Init
+	
+	Wrap_Struct_Struct_Init -d-> Return_Struct_Init
 }
 
 	
