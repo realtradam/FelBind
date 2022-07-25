@@ -1,26 +1,97 @@
 @startuml
 
-state "General Process" as General_Process {
-	state Code
-	state JSON
 	state Gem {
 		state Headers
-		state Structs {
+		state Structs #red {
 			state Struct_Type_Init
-			state Struct_Accessors
-			state Struct_Func_Init
-		}
-		state Methods
-		state Gem_Initializer {
-			state Define_Module
-			state Define_Struct_Classes
-			state Define_Struct_Methods
-			state Define_Functions
-		}
-		state Gem_Finalizer
+			state Struct_Deinit #chocolate
+			state "Struct Getter Method" as Struct_Getter #lawngreen {
+				state fork_is_struct_getter <<fork>>
+				state "Unwrap Struct\nand Read Value" as Unwrap_Struct_Getter
+				state "Return Value" as Return_Struct_Getter
+				state "Handle If Value\nIs Struct" as Handle_Struct_Value_Getter
+			
+				[*] -d-> Unwrap_Struct_Getter
+				Unwrap_Struct_Getter -d-> fork_is_struct_getter
+				fork_is_struct_getter -d-> Return_Struct_Getter
+				fork_is_struct_getter -d-> Handle_Struct_Value_Getter
+				Handle_Struct_Value_Getter -d-> Return_Struct_Getter
+			}
+			state "Struct Setter Method" as Struct_Setter #darkorchid {
+				state "Initialize Vars" as Initialize_Vars_Setter
+				state "Get and Assign\nArg" as Get_Arg_Setter
+				state "Unwrap And Set" as Unwrap_Struct_Setter
+				state "Return Var" as Return_Setter
+			
+				[*] -d-> Initialize_Vars_Setter
+				Initialize_Vars_Setter -d-> Get_Arg_Setter
+				Get_Arg_Setter -d-> Unwrap_Struct_Setter
+				Unwrap_Struct_Setter -d-> Return_Setter
+			}
+			state Struct_Initializer as "Struct Initializer" #gold {
+				state "Initialize Vars" as Initialize_Vars_Struct_Init
+				state fork_kw_args_struct_init <<fork>>
+				state "Get and Assign\nArg" as Get_Arg_Struct_Init
+				state "Get and Assign\nKwargs" as Get_Kwargs_Struct_Init
+				state "Build Struct" as Build_Struct_Struct_Init
+				state "Wrap Struct" as Wrap_Struct_Struct_Init
+				state "Return Ruby Object" as Return_Struct_Init
+			
+				[*] -d-> Initialize_Vars_Struct_Init
+			
+				Initialize_Vars_Struct_Init -d-> fork_kw_args_struct_init
+				
+				fork_kw_args_struct_init -d-> Get_Arg_Struct_Init
+				
+				fork_kw_args_struct_init -d-> Get_Kwargs_Struct_Init
+				
+				Get_Arg_Struct_Init -d-> Build_Struct_Struct_Init
+				Get_Kwargs_Struct_Init -d-> Build_Struct_Struct_Init
+				
+				Build_Struct_Struct_Init -d-> Wrap_Struct_Struct_Init
+				
+				Wrap_Struct_Struct_Init -d-> Return_Struct_Init
+			}
 
-		Code -r-> JSON
-		JSON -d-> Gem
+			Struct_Type_Init --> Struct_Deinit
+
+		}
+		state Methods #lightblue {
+			state "Initialize Vars" as Initialize_Vars_C_Function
+			state fork_kw_args_c_function <<fork>>
+			state "Get and Assign Arg" as Get_Arg_C_Function
+			state "Get and Assign Kwargs" as Get_Kwargs_C_Function
+			state "Call Function" as Call_C_Function
+			state fork_wrap_struct_c_function <<fork>>
+			state "Wrap Struct" as Wrap_Struct_C_Function
+			state "Return Value" as Return_C_Function
+
+			[*] -d-> Initialize_Vars_C_Function
+			[*] -d-> Call_C_Function
+
+			Initialize_Vars_C_Function -d-> fork_kw_args_c_function
+	
+			fork_kw_args_c_function -d-> Get_Arg_C_Function
+	
+			fork_kw_args_c_function -d-> Get_Kwargs_C_Function
+	
+			Get_Arg_C_Function -d-> Call_C_Function
+			Get_Kwargs_C_Function -d-> Call_C_Function
+	
+			Call_C_Function -d-> fork_wrap_struct_c_function
+			fork_wrap_struct_c_function -d-> Wrap_Struct_C_Function
+	
+			fork_wrap_struct_c_function -d-> Return_C_Function
+			Wrap_Struct_C_Function -d-> Return_C_Function
+		}
+		state Gem_Initializer as "Gem Initializer" {
+			state Define_Module as "Define Module" #crimson
+			state Define_Struct_Classes as "Define Classes" #darkorange
+			state Define_Struct_Methods as "Define Struct Methods" #hotpink
+			state Define_Functions as "Define Functions" #lightblue
+		}
+		state Gem_Finalizer as "Gem Finalizer"
+
 		
 		Headers -d-> Structs
 		Structs -d-> Methods
@@ -31,94 +102,41 @@ state "General Process" as General_Process {
 		Define_Struct_Classes -r-> Define_Struct_Methods
 		Define_Struct_Classes -d-> Define_Functions
 	}
-}
-state "Method" as C_Function {
-	state "Initialize Vars" as Initialize_Vars_C_Function
-	state fork_kw_args_c_function <<fork>>
-	state "Get Single Arg" as Get_Arg_C_Function
-	state "Get Kwargs" as Get_Kwargs_C_Function
-	state "Assign Arg" as Assign_Arg_C_Function
-	state "Assign Kwargs" as Assign_Kwargs_C_Function
-	state "Call Function" as Call_C_Function
-	state fork_wrap_struct_c_function <<fork>>
-	state "Wrap Struct" as Wrap_Struct_C_Function
-	state "Return Value" as Return_C_Function
 
-	[*] -d-> Initialize_Vars_C_Function
-	[*] -d-> Call_C_Function
+state Build_State as "Build State Hash" {
+	state BS_C_Gemname as "Gem Name" #crimson : string
+	state BS_C_Typedef as "Typedefs" : hash(typedef: c_type)
+	state BS_C_Function_Name as "C Function Name" #lightblue {
+		state BS_Cfun_Skip as "Skip" : boolean
+		state BS_Cfun_RClass as "Ruby Class" #darkorange : string or array(string)
+		state BS_Cfun_Name as "Ruby Name" : string
+		state BS_Cfun_Selfparam as "Param as Self" : string
+	}
+	state BS_C_Struct_Name as "C Struct Name" #red {
+		state BS_C_Deinit as "Deinitialize Object" #chocolate : string(C code)
+		state BS_Cstc_Skip as "Skip" : boolean
+		state BS_Cstc_Name as "Ruby Name" : string
+		state BS_Cstc_RClass as "Ruby Class" #darkorange : string or array(string)
+		state BS_Cstc_Typedef as "C Typedefs" : array of strings
+		state BS_Cstc_Init as "Initializer" #gold {
+			state BS_Cstc_I_skip as "Skip" : boolean
+		}
+		state BS_Cstc_Accessors as "Accessors" #hotpink {
+			state BS_Cstc_Getters as "Getters" #lawngreen {
+				state BS_Cstc_G_Name as "Ruby Name" : string
+				state BS_Cstc_G_Skip as "Skip" : boolean
+			}
+			state BS_Cstc_Setters as "Setters" #darkorchid {
+				state BS_Cstc_S_Name as "Ruby Name" : string
+				state BS_Cstc_S_Skip as "Skip" : boolean
+			}
+		}
+		BS_Cstc_Getters -d[hidden]-> BS_Cstc_Setters
+	}
 
-	Initialize_Vars_C_Function -d-> fork_kw_args_c_function
-	
-	fork_kw_args_c_function -d-> Get_Arg_C_Function
-	Get_Arg_C_Function -d-> Assign_Arg_C_Function
-	
-	fork_kw_args_c_function -d-> Get_Kwargs_C_Function
-	Get_Kwargs_C_Function -d-> Assign_Kwargs_C_Function
-	
-	Assign_Arg_C_Function -d-> Call_C_Function
-	Assign_Kwargs_C_Function -d-> Call_C_Function
-	
-	Call_C_Function -d-> fork_wrap_struct_c_function
-	fork_wrap_struct_c_function -d-> Wrap_Struct_C_Function
-	
-	fork_wrap_struct_c_function -d-> Return_C_Function
-	Wrap_Struct_C_Function -d-> Return_C_Function
-}
-
-state "Struct Getter Method" as Struct_Getter {
-	state fork_is_struct_getter <<fork>>
-	state "Unwrap Struct\nand Read Value" as Unwrap_Struct_Getter
-	state "Return Value" as Return_Struct_Getter
-	state "Handle If Value\nIs Struct" as Handle_Struct_Value_Getter
-
-	[*] -d-> Unwrap_Struct_Getter
-	Unwrap_Struct_Getter -d-> fork_is_struct_getter
-	fork_is_struct_getter -d-> Return_Struct_Getter
-	fork_is_struct_getter -d-> Handle_Struct_Value_Getter
-	Handle_Struct_Value_Getter -d-> Return_Struct_Getter
-
+	BS_C_Function_Name -d[hidden]-> BS_C_Struct_Name
 }
 
-state "Struct Setter Method" as Struct_Setter {
-	state "Initialize Vars" as Initialize_Vars_Setter
-	state "Get Arg" as Get_Arg_Setter
-	state "Unwrap And Set" as Unwrap_Struct_Setter
-	state "Return Var" as Return_Setter
-
-	[*] -d-> Initialize_Vars_Setter
-	Initialize_Vars_Setter -d-> Get_Arg_Setter
-	Get_Arg_Setter -d-> Unwrap_Struct_Setter
-	Unwrap_Struct_Setter -d-> Return_Setter
-}
-
-state Struct_Initializer {
-	state "Initialize Vars" as Initialize_Vars_Struct_Init
-	state fork_kw_args_struct_init <<fork>>
-	state "Get Single Arg" as Get_Arg_Struct_Init
-	state "Get Kwargs" as Get_Kwargs_Struct_Init
-	state "Assign Arg" as Assign_Arg_Struct_Init
-	state "Assign Kwargs" as Assign_Kwargs_Struct_Init
-	state "Build Struct" as Build_Struct_Struct_Init
-	state "Wrap Struct" as Wrap_Struct_Struct_Init
-	state "Return Ruby Object" as Return_Struct_Init
-
-	[*] -d-> Initialize_Vars_Struct_Init
-
-	Initialize_Vars_Struct_Init -d-> fork_kw_args_struct_init
-	
-	fork_kw_args_struct_init -d-> Get_Arg_Struct_Init
-	Get_Arg_Struct_Init -d-> Assign_Arg_Struct_Init
-	
-	fork_kw_args_struct_init -d-> Get_Kwargs_Struct_Init
-	Get_Kwargs_Struct_Init -d-> Assign_Kwargs_Struct_Init
-	
-	Assign_Arg_Struct_Init -d-> Build_Struct_Struct_Init
-	Assign_Kwargs_Struct_Init -d-> Build_Struct_Struct_Init
-	
-	Build_Struct_Struct_Init -d-> Wrap_Struct_Struct_Init
-	
-	Wrap_Struct_Struct_Init -d-> Return_Struct_Init
-}
 
 	
 
