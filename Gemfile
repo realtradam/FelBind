@@ -4,4 +4,4 @@ source "https://rubygems.org"
 
 # gem "rails"
 
-gem "activerecord", "~> 7.0"
+gem "cast", "~> 0.3.1"
