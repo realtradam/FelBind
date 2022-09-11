@@ -111,6 +111,12 @@ state Build_State as "Build State Hash" {
 		state BS_Cfun_RClass as "Ruby Class" #darkorange : string or array(string)
 		state BS_Cfun_Name as "Ruby Name" : string
 		state BS_Cfun_Selfparam as "Param as Self" : string
+		state BS_Cfun_Params as "Params" {
+			state BS_Cfun_CParamName as "CParam Name" {
+				state BS_Cfun_RubyParamName as "Ruby Param Name" : string
+				state BS_Cfun_ParamType as "Param Type" : string
+			}
+		}
 	}
 	state BS_C_Struct_Name as "C Struct Name" #red {
 		state BS_C_Deinit as "Deinitialize Object" #chocolate : string(C code)
@@ -122,16 +128,11 @@ state Build_State as "Build State Hash" {
 			state BS_Cstc_I_skip as "Skip" : boolean
 		}
 		state BS_Cstc_Accessors as "Accessors" #hotpink {
-			state BS_Cstc_Getters as "Getters" #lawngreen {
-				state BS_Cstc_G_Name as "Ruby Name" : string
-				state BS_Cstc_G_Skip as "Skip" : boolean
-			}
-			state BS_Cstc_Setters as "Setters" #darkorchid {
-				state BS_Cstc_S_Name as "Ruby Name" : string
-				state BS_Cstc_S_Skip as "Skip" : boolean
-			}
+			state BS_Cstc_G_Name as "Ruby Name" : string
+			state BS_Cstc_G_Type as "Type" : string
+			state BS_Cstc_G_Skip as "Skip Getter" #lawngreen : boolean
+			state BS_Cstc_S_Skip as "Skip Setter" #darkorchid : boolean
 		}
-		BS_Cstc_Getters -d[hidden]-> BS_Cstc_Setters
 	}
 
 	BS_C_Function_Name -d[hidden]-> BS_C_Struct_Name
