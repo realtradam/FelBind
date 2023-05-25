@@ -1,3 +1,13 @@
+/.bundle/
+/.yardoc
+/_yardoc/
+/coverage/
+/doc/
+/pkg/
+/spec/reports/
+/tmp/
+
+/*.json
 json.json
 raylib.h
 chipmunk.h
@@ -9,4 +19,3 @@ temp
 temp.c
 build
 build/*
-planning/*.png

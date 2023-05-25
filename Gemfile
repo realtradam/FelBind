@@ -2,6 +2,9 @@
 
 source "https://rubygems.org"
 
-# gem "rails"
+# Specify your gem's dependencies in FelBind.gemspec
+gemspec
 
-gem "cast", "~> 0.3.1"
+gem "rake", "~> 13.0"
+
+gem "rubocop", "~> 1.21"

@@ -1,0 +1,78 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+require 'fileutils'
+require 'FelBind'
+
+def print_help
+  commands = [
+    "  # Prints Help",
+    "  help",
+    "",
+    "  # prints out intermediate",
+    "  parse -<backend> <input-file list>",
+    "    Valid Backends:",
+    "      -uctags (default)",
+    "",
+    "  # Creates bindings gem",
+    "  build -<frontend> <input-file> <destination>",
+    "    Valid Frontends:",
+    "      -mruby (default)",
+  ]
+
+  commands.each { |cmd| puts cmd }
+end
+
+if (ARGV.size == 0) || (ARGV[0] == 'help')
+  print_help
+  return
+end
+
+if ARGV[0] == 'parse'
+  file_path = ''
+  if ARGV[1].start_with? '-'
+    if ARGV[1] != '-uctags'
+      puts 'invalid backend'
+      return
+    else
+      file_path = ARGV[2]
+    end
+  else
+    file_path = ARGV[1]
+  end
+
+  if !File.exist?(file_path)
+    puts "invalid file path"
+    return
+  end
+
+  pp FelBind::Backends::UCTags.parse(file_path)
+elsif ARGV[0] == 'build'
+  file_path = ''
+  dest_dir = ''
+  if ARGV[1] == '-mruby'
+    file_path = ARGV[2]
+    dest_dir = ARGV[3]
+  else
+    file_path = ARGV[1]
+    dest_dir = ARGV[2]
+  end
+
+  if !File.exist?(file_path)
+    puts "invalid file path"
+    return
+  end
+
+  puts "TEST"
+  FileUtils.mkpath(dest_dir) unless File.exist?(dest_dir)
+
+  #if !File.directory?
+  #  puts "invalid destination"
+  #  return
+  #end
+
+  FelBind::Frontend::Mruby.build(file_path, dest_dir)
+else
+  print_help
+  return
+end
+
