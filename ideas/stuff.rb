@@ -56,7 +56,7 @@ mgem = BindGem.new
 
 mgem.add_class("Color")
 
-mgem.add_struct(class: "Color") do |struct|
+mgem.add_struct(class: "Color", cstruct_name: "Color") do |struct|
   struct.initializer = true
   struct.member(
     name: "r",
