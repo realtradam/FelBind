@@ -260,7 +260,7 @@ module FelBind
       result = ""
       result += "void mrb_#{gem_name}_gem_init(mrb_state* mrb) {\n"
       class_names.each do |class_name|
-        result += "struct RClass *#{class_name}_class = mrb_define_module(mrb, \"#{class_name}\");\n"
+        result += "struct RClass *#{class_name}_class = mrb_define_class(mrb, \"#{class_name}\", mrb->object_class);\n"
       end
       structs.each do |strct|
         result += strct.build_set_instance("#{strct.class_name}_class")
